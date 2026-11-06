@@ -405,6 +405,8 @@ class StorageService {
     if (!s.adminPin) {
       s.adminPin = DEFAULT_SETTINGS.adminPin;
     }
+    // Ensure fresh app session always starts in normal mode (never trapped in simulated offline)
+    s.simulatedOffline = false;
     return s;
   }
 

@@ -16,6 +16,7 @@ interface HeaderProps {
   isOnline: boolean;
   simulatedOffline: boolean;
   onToggleSimulatedOffline: () => void;
+  onRecheckNetwork?: () => void;
   pendingCount: number;
   syncStatus: SyncStatus;
   onTriggerSync: () => void;
@@ -32,6 +33,7 @@ export const Header: React.FC<HeaderProps> = ({
   isOnline,
   simulatedOffline,
   onToggleSimulatedOffline,
+  onRecheckNetwork,
   pendingCount,
   syncStatus,
   onTriggerSync,
@@ -106,29 +108,38 @@ export const Header: React.FC<HeaderProps> = ({
         {/* Right side: Status and Actions */}
         <div className="flex items-center gap-1.5 md:gap-2">
           {/* Network Indicator & Toggle */}
-          <button
-            onClick={onToggleSimulatedOffline}
-            title={effectiveOnline ? 'คลิกเพื่อจำลองโหมดออฟไลน์' : 'คลิกเพื่อกลับสู่โหมดออนไลน์'}
-            className={`flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs font-medium border transition-colors ${
-              effectiveOnline
-                ? 'bg-emerald-950/60 text-emerald-400 border-emerald-800/50 hover:bg-emerald-900/60'
-                : 'bg-rose-950/80 text-rose-300 border-rose-800/60 hover:bg-rose-900/80'
-            }`}
-          >
-            {effectiveOnline ? (
-              <>
-                <span className="w-2 h-2 rounded-full bg-emerald-400 shadow-sm shadow-emerald-400"></span>
-                <Wifi className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">Online</span>
-              </>
-            ) : (
-              <>
-                <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse"></span>
-                <WifiOff className="w-3.5 h-3.5" />
-                <span className="font-semibold">{simulatedOffline ? 'Sim Offline' : 'Offline'}</span>
-              </>
-            )}
-          </button>
+          {simulatedOffline ? (
+            <button
+              onClick={onToggleSimulatedOffline}
+              title="กำลังจำลองโหมดออฟไลน์ - คลิกเพื่อกลับสู่โหมดออนไลน์ปกติ"
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-amber-950/90 text-amber-300 border border-amber-600/70 hover:bg-amber-900 transition-colors shadow-sm animate-pulse"
+            >
+              <span className="w-2 h-2 rounded-full bg-amber-400"></span>
+              <WifiOff className="w-3.5 h-3.5" />
+              <span>จำลองออฟไลน์ (แตะปิด)</span>
+            </button>
+          ) : !isOnline ? (
+            <button
+              onClick={() => onRecheckNetwork?.()}
+              title="ตรวจไม่พบสัญญาณเน็ต - คลิกเพื่อตรวจเช็คสัญญาณใหม่ทันที"
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-rose-950/90 text-rose-300 border border-rose-800/80 hover:bg-rose-900 transition-colors shadow-sm"
+            >
+              <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping"></span>
+              <WifiOff className="w-3.5 h-3.5" />
+              <span>Offline (แตะเช็คเน็ต)</span>
+            </button>
+          ) : (
+            <button
+              onClick={onToggleSimulatedOffline}
+              title="เชื่อมต่ออินเทอร์เน็ตปกติ (คลิกเพื่อทดสอบจำลองโหมดออฟไลน์)"
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium bg-emerald-950/70 text-emerald-400 border border-emerald-800/60 hover:bg-emerald-900/60 transition-colors"
+            >
+              <span className="w-2 h-2 rounded-full bg-emerald-400 shadow-sm shadow-emerald-400"></span>
+              <Wifi className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Online (ปกติ)</span>
+              <span className="sm:hidden">Online</span>
+            </button>
+          )}
 
           {/* Pending Sync Count & Sync Now Button */}
           {pendingCount > 0 && (

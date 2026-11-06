@@ -18,6 +18,7 @@ import {
   SyncStatus,
 } from './types';
 import { storageService, DEFAULT_SETTINGS, SEED_RISK_POINTS } from './services/storage';
+import { connectivityService } from './services/connectivity';
 import { audioAlertService } from './services/audioAlert';
 import { evaluateGeofence, calculateDistanceMeters } from './services/geofence';
 import {
@@ -54,9 +55,9 @@ export default function App() {
   const [userProfile, setUserProfile] = useState<UserProfile>(storageService.getUserProfile());
   const [syncLogs, setSyncLogs] = useState<SyncLog[]>([]);
 
-  // Connectivity
+  // Connectivity with Active Probe
   const [isBrowserOnline, setIsBrowserOnline] = useState<boolean>(
-    typeof navigator !== 'undefined' ? navigator.onLine : true
+    connectivityService.getStatus()
   );
   const [simulatedOffline, setSimulatedOffline] = useState<boolean>(false);
   const [syncStatus, setSyncStatus] = useState<SyncStatus>('synced');
@@ -105,7 +106,7 @@ export default function App() {
     setPoints(allPoints);
     setPendingQueue(pending);
     setSettings(currentSettings);
-    setSimulatedOffline(currentSettings.simulatedOffline);
+    // Keep simulatedOffline defaulting to false for normal operation
     setSyncLogs(logs);
     setUserProfile(profile);
   }, []);
@@ -131,21 +132,20 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  // --- ONLINE / OFFLINE LISTENERS ---
+  // --- ACTIVE CONNECTIVITY MONITORING ---
   useEffect(() => {
-    const handleOnline = () => {
-      setIsBrowserOnline(true);
-    };
-    const handleOffline = () => {
-      setIsBrowserOnline(false);
-    };
+    if (settings.appsScriptUrl) {
+      connectivityService.setAppsScriptUrl(settings.appsScriptUrl);
+    }
+  }, [settings.appsScriptUrl]);
 
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
-    return () => {
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
-    };
+  useEffect(() => {
+    const unsubscribe = connectivityService.subscribe((online) => {
+      setIsBrowserOnline(online);
+    });
+    // Immediately trigger an active connectivity probe
+    connectivityService.checkConnectivityNow();
+    return () => unsubscribe();
   }, []);
 
   // --- REAL-TIME GPS WATCHER ---
@@ -258,17 +258,28 @@ export default function App() {
     }
   }, [effectiveOnline, isSyncing, settings.syncMethod, settings.appsScriptUrl, settings.googleSheetId]);
 
-  // Trigger auto sync on transition to online
+  // Sync Status indicator calculation
   useEffect(() => {
-    if (effectiveOnline && settings.autoSyncOnOnline && pendingQueue.length > 0) {
+    if (isSyncing) {
+      setSyncStatus('syncing');
+    } else if (pendingQueue.length > 0) {
+      setSyncStatus('pending');
+    } else {
+      setSyncStatus('synced');
+    }
+  }, [isSyncing, pendingQueue.length]);
+
+  // Trigger prompt auto-sync whenever pendingQueue has items and online (every time data is added/modified)
+  useEffect(() => {
+    if (effectiveOnline && settings.autoSyncOnOnline && pendingQueue.length > 0 && !isSyncing) {
       const timer = setTimeout(() => {
         handleBatchSync();
-      }, 1500);
+      }, 600);
       return () => clearTimeout(timer);
     }
-  }, [effectiveOnline, settings.autoSyncOnOnline, pendingQueue.length, handleBatchSync]);
+  }, [effectiveOnline, settings.autoSyncOnOnline, pendingQueue.length, isSyncing, handleBatchSync]);
 
-  // Continuous background auto-sync every 20 seconds whenever there are pending items
+  // Continuous background auto-sync every 15 seconds whenever there are pending items
   useEffect(() => {
     if (!effectiveOnline) return;
 
@@ -276,7 +287,7 @@ export default function App() {
       if (pendingQueue.length > 0 && !isSyncing) {
         handleBatchSync();
       }
-    }, 20000);
+    }, 15000);
 
     return () => clearInterval(intervalId);
   }, [effectiveOnline, pendingQueue.length, isSyncing, handleBatchSync]);
@@ -420,6 +431,7 @@ export default function App() {
         isOnline={isBrowserOnline}
         simulatedOffline={simulatedOffline}
         onToggleSimulatedOffline={handleToggleSimulatedOffline}
+        onRecheckNetwork={() => connectivityService.checkConnectivityNow()}
         pendingCount={pendingQueue.length}
         syncStatus={syncStatus}
         onTriggerSync={handleBatchSync}

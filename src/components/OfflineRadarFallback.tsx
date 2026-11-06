@@ -49,122 +49,124 @@ export const OfflineRadarFallback: React.FC<OfflineRadarProps> = ({
   const radarPoints = pointsWithDistance.filter((p) => p.distance <= maxRangeMeters);
 
   return (
-    <div className="flex-1 flex flex-col w-full h-full bg-slate-950 text-slate-100 overflow-y-auto p-4 max-w-xl mx-auto">
+    <div className="flex-1 flex flex-col w-full h-full bg-slate-950 text-slate-100 overflow-y-auto p-3 sm:p-5 pb-24 md:pb-6 max-w-6xl mx-auto">
       {/* Tactical Status Header */}
       <div className="flex items-center justify-between pb-3 border-b border-slate-800">
         <div>
           <div className="flex items-center gap-1.5">
             <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
-            <h2 className="font-bold text-sm tracking-wide text-emerald-400 uppercase">
-              Tactical Offline Radar
+            <h2 className="font-bold text-xs sm:text-sm tracking-wide text-emerald-400 uppercase">
+              เรดาร์เตือนภัยภาคสนาม (Offline Radar HUD)
             </h2>
           </div>
-          <p className="text-[11px] text-slate-400">
+          <p className="text-[10px] sm:text-[11px] text-slate-400 font-mono">
             พิกัด: {userLat.toFixed(5)}, {userLng.toFixed(5)} (±{accuracy.toFixed(1)}m)
           </p>
         </div>
 
         <button
           onClick={onOpenAddModal}
-          className="px-3 py-1.5 rounded-lg bg-orange-600 hover:bg-orange-500 text-white text-xs font-semibold shadow-md active:scale-95 transition-transform"
+          className="px-3 py-1.5 sm:py-2 rounded-xl bg-orange-600 hover:bg-orange-500 text-white text-xs sm:text-sm font-semibold shadow-md active:scale-95 transition-transform flex items-center gap-1"
         >
-          + บันทึกจุดเสี่ยง
+          <span>+ บันทึกจุดเสี่ยง</span>
         </button>
       </div>
 
-      {/* Radar HUD Screen */}
-      <div className="relative w-full aspect-square max-h-[340px] my-4 mx-auto flex items-center justify-center">
-        {/* Outer Ring */}
-        <div className="relative w-full h-full rounded-full border-2 border-emerald-900/60 bg-emerald-950/20 backdrop-blur-sm overflow-hidden flex items-center justify-center shadow-inner shadow-emerald-950">
-          {/* Radar Sweep Line */}
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-            <div className="w-1/2 h-0.5 bg-gradient-to-r from-transparent via-emerald-500/40 to-emerald-400 origin-left animate-radar"></div>
+      {/* Main Responsive Layout: Stack on Mobile, 2 Columns on Desktop */}
+      <div className="lg:grid lg:grid-cols-12 lg:gap-8 lg:items-start my-3 sm:my-5">
+        {/* Left Column: Radar HUD Screen */}
+        <div className="lg:col-span-6 flex flex-col items-center">
+          <div className="relative w-full aspect-square max-w-[300px] sm:max-w-[340px] lg:max-w-[380px] mx-auto flex items-center justify-center">
+            {/* Outer Ring */}
+            <div className="relative w-full h-full rounded-full border-2 border-emerald-900/60 bg-emerald-950/20 backdrop-blur-sm overflow-hidden flex items-center justify-center shadow-inner shadow-emerald-950">
+              {/* Radar Sweep Line */}
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                <div className="w-1/2 h-0.5 bg-gradient-to-r from-transparent via-emerald-500/40 to-emerald-400 origin-left animate-radar"></div>
+              </div>
+
+              {/* Distance Rings */}
+              <div className="absolute w-[80%] h-[80%] rounded-full border border-emerald-800/30"></div>
+              <div className="absolute w-[55%] h-[55%] rounded-full border border-emerald-800/40"></div>
+              <div className="absolute w-[30%] h-[30%] rounded-full border border-emerald-700/50"></div>
+
+              {/* Crosshairs */}
+              <div className="absolute w-full h-[1px] bg-emerald-900/40"></div>
+              <div className="absolute h-full w-[1px] bg-emerald-900/40"></div>
+
+              {/* Ring Labels */}
+              <span className="absolute top-2 text-[9px] font-mono text-emerald-500/70 font-bold">N</span>
+              <span className="absolute bottom-2 text-[9px] font-mono text-emerald-500/70 font-bold">S</span>
+              <span className="absolute left-2 text-[9px] font-mono text-emerald-500/70 font-bold">W</span>
+              <span className="absolute right-2 text-[9px] font-mono text-emerald-500/70 font-bold">E</span>
+              <span className="absolute text-[8px] font-mono text-emerald-600/70 top-[36%] right-3">500m</span>
+              <span className="absolute text-[8px] font-mono text-emerald-600/70 top-[44%] right-8">200m</span>
+
+              {/* Center User Blip */}
+              <div className="absolute z-10 w-4 h-4 rounded-full bg-cyan-400 border-2 border-white shadow-lg shadow-cyan-400 flex items-center justify-center">
+                <div className="w-1.5 h-1.5 rounded-full bg-slate-900"></div>
+              </div>
+
+              {/* Threat Blips */}
+              {radarPoints.map((p) => {
+                const rad = ((p.bearing - 90) * Math.PI) / 180;
+                const distanceRatio = Math.min(p.distance / maxRangeMeters, 0.95);
+                const radiusPx = distanceRatio * 140;
+                const x = radiusPx * Math.cos(rad);
+                const y = radiusPx * Math.sin(rad);
+
+                const isHigh = p.severity === 'high' || (p.severity as string) === 'critical';
+                const isMedium = p.severity === 'medium';
+
+                return (
+                  <button
+                    key={p.id}
+                    onClick={() => {
+                      setSelectedPoint(p);
+                      onSelectPoint(p);
+                    }}
+                    style={{
+                      transform: `translate(${x}px, ${y}px)`,
+                    }}
+                    className={`absolute z-20 w-5 h-5 rounded-full flex items-center justify-center transition-transform hover:scale-125 ${
+                      isHigh
+                        ? 'bg-red-500 shadow-md shadow-red-500/80 animate-ping'
+                        : isMedium
+                        ? 'bg-amber-500 shadow-md shadow-amber-500/70'
+                        : 'bg-blue-400'
+                    }`}
+                    title={`${p.title} (${p.distance}m)`}
+                  >
+                    <div
+                      className={`w-3 h-3 rounded-full border border-white ${
+                        isHigh ? 'bg-red-600' : isMedium ? 'bg-orange-600' : 'bg-blue-500'
+                      }`}
+                    />
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
-          {/* Distance Rings */}
-          <div className="absolute w-[80%] h-[80%] rounded-full border border-emerald-800/30"></div>
-          <div className="absolute w-[55%] h-[55%] rounded-full border border-emerald-800/40"></div>
-          <div className="absolute w-[30%] h-[30%] rounded-full border border-emerald-700/50"></div>
-
-          {/* Crosshairs */}
-          <div className="absolute w-full h-[1px] bg-emerald-900/40"></div>
-          <div className="absolute h-full w-[1px] bg-emerald-900/40"></div>
-
-          {/* Ring Labels */}
-          <span className="absolute top-2 text-[9px] font-mono text-emerald-500/70 font-bold">N</span>
-          <span className="absolute bottom-2 text-[9px] font-mono text-emerald-500/70 font-bold">S</span>
-          <span className="absolute left-2 text-[9px] font-mono text-emerald-500/70 font-bold">W</span>
-          <span className="absolute right-2 text-[9px] font-mono text-emerald-500/70 font-bold">E</span>
-          <span className="absolute text-[8px] font-mono text-emerald-600/70 top-[36%] right-3">500m</span>
-          <span className="absolute text-[8px] font-mono text-emerald-600/70 top-[44%] right-8">200m</span>
-
-          {/* Center User Blip */}
-          <div className="absolute z-10 w-4 h-4 rounded-full bg-cyan-400 border-2 border-white shadow-lg shadow-cyan-400 flex items-center justify-center">
-            <div className="w-1.5 h-1.5 rounded-full bg-slate-900"></div>
-          </div>
-
-          {/* Threat Blips */}
-          {radarPoints.map((p) => {
-            // Polar to Cartesian projection on Radar Display
-            // bearing 0 is North (top), 90 East (right), 180 South (down), 270 West (left)
-            const rad = ((p.bearing - 90) * Math.PI) / 180;
-            const distanceRatio = Math.min(p.distance / maxRangeMeters, 0.95);
-            const radiusPx = (distanceRatio * 150); // half width approx
-            const x = radiusPx * Math.cos(rad);
-            const y = radiusPx * Math.sin(rad);
-
-            const isHigh = p.severity === 'high';
-            const isMedium = p.severity === 'medium';
-
-            return (
-              <button
-                key={p.id}
-                onClick={() => {
-                  setSelectedPoint(p);
-                  onSelectPoint(p);
-                }}
-                style={{
-                  transform: `translate(${x}px, ${y}px)`,
-                }}
-                className={`absolute z-20 w-5 h-5 rounded-full flex items-center justify-center transition-transform hover:scale-125 ${
-                  isHigh
-                    ? 'bg-red-500 shadow-md shadow-red-500/80 animate-ping'
-                    : isMedium
-                    ? 'bg-amber-500 shadow-md shadow-amber-500/70'
-                    : 'bg-blue-400'
-                }`}
-                title={`${p.title} (${p.distance}m)`}
-              >
-                <div
-                  className={`w-3 h-3 rounded-full border border-white ${
-                    isHigh ? 'bg-red-600' : isMedium ? 'bg-orange-600' : 'bg-blue-500'
-                  }`}
-                />
-              </button>
-            );
-          })}
+          {/* Selected Radar Blip Info Card */}
+          {selectedPoint && (
+            <div className="w-full mt-3 p-3 rounded-2xl bg-slate-900 border border-orange-500/50 shadow-lg animate-in fade-in">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs sm:text-sm font-bold text-orange-400">{selectedPoint.title}</span>
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-red-950 text-red-400 border border-red-800 font-mono">
+                  {calculateDistanceMeters(userLat, userLng, selectedPoint.lat, selectedPoint.lng)} เมตร
+                </span>
+              </div>
+              <p className="text-xs text-slate-300 line-clamp-2">{selectedPoint.description}</p>
+            </div>
+          )}
         </div>
-      </div>
 
-      {/* Selected Radar Blip Info Card */}
-      {selectedPoint && (
-        <div className="mb-4 p-3 rounded-xl bg-slate-900 border border-orange-500/50 shadow-lg animate-in fade-in">
-          <div className="flex items-center justify-between mb-1">
-            <span className="text-xs font-bold text-orange-400">{selectedPoint.title}</span>
-            <span className="text-[10px] px-2 py-0.5 rounded-full bg-red-950 text-red-400 border border-red-800">
-              {calculateDistanceMeters(userLat, userLng, selectedPoint.lat, selectedPoint.lng)} เมตร
-            </span>
-          </div>
-          <p className="text-xs text-slate-300 line-clamp-2">{selectedPoint.description}</p>
-        </div>
-      )}
-
-      {/* Nearby Risk Points List (Sorted by proximity) */}
-      <div className="flex-1 space-y-2">
-        <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-          <ShieldAlert className="w-3.5 h-3.5 text-amber-400" />
-          <span>จุดเสี่ยงใกล้เคียงที่สุด ({pointsWithDistance.length} จุด)</span>
-        </h3>
+        {/* Right Column: Nearby Risk Points List (Sorted by proximity) */}
+        <div className="lg:col-span-6 space-y-2.5 mt-4 lg:mt-0">
+          <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5 pb-1">
+            <ShieldAlert className="w-4 h-4 text-amber-400" />
+            <span>จุดเสี่ยงใกล้เคียงที่สุด ({pointsWithDistance.length} จุด)</span>
+          </h3>
 
         {pointsWithDistance.slice(0, 5).map((point) => {
           const isDanger = point.distance <= alertRadiusMeters;
@@ -211,6 +213,7 @@ export const OfflineRadarFallback: React.FC<OfflineRadarProps> = ({
             </div>
           );
         })}
+        </div>
       </div>
     </div>
   );

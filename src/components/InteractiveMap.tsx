@@ -350,24 +350,24 @@ const LeafletFieldMap: React.FC<LeafletMapProps> = ({
       <div ref={mapContainerRef} className="w-full h-full z-0" />
 
       {/* Top Map Type & Layer Controls */}
-      <div className="absolute top-16 right-3 z-10 flex items-center bg-slate-900/90 backdrop-blur-md p-1 rounded-xl border border-slate-700/80 shadow-lg text-xs">
+      <div className="absolute top-12 sm:top-14 right-2 sm:right-3 z-10 flex items-center bg-slate-900/95 backdrop-blur-md p-0.5 sm:p-1 rounded-xl border border-slate-700/80 shadow-lg text-[11px] sm:text-xs">
         <button
           type="button"
           onClick={() => setMapType('streets')}
-          className={`px-2.5 py-1 rounded-lg font-medium transition-all ${
+          className={`px-2 sm:px-2.5 py-1 rounded-lg font-medium transition-all min-h-[32px] ${
             mapType === 'streets'
-              ? 'bg-orange-600 text-white shadow-sm'
+              ? 'bg-orange-600 text-white shadow-sm font-semibold'
               : 'text-slate-300 hover:text-white'
           }`}
         >
-          แผนที่ถนน
+          ถนน
         </button>
         <button
           type="button"
           onClick={() => setMapType('satellite')}
-          className={`px-2.5 py-1 rounded-lg font-medium transition-all ${
+          className={`px-2 sm:px-2.5 py-1 rounded-lg font-medium transition-all min-h-[32px] ${
             mapType === 'satellite'
-              ? 'bg-orange-600 text-white shadow-sm'
+              ? 'bg-orange-600 text-white shadow-sm font-semibold'
               : 'text-slate-300 hover:text-white'
           }`}
         >
@@ -376,9 +376,9 @@ const LeafletFieldMap: React.FC<LeafletMapProps> = ({
         <button
           type="button"
           onClick={() => setMapType('dark')}
-          className={`px-2.5 py-1 rounded-lg font-medium transition-all ${
+          className={`px-2 sm:px-2.5 py-1 rounded-lg font-medium transition-all min-h-[32px] ${
             mapType === 'dark'
-              ? 'bg-orange-600 text-white shadow-sm'
+              ? 'bg-orange-600 text-white shadow-sm font-semibold'
               : 'text-slate-300 hover:text-white'
           }`}
         >
@@ -386,14 +386,14 @@ const LeafletFieldMap: React.FC<LeafletMapProps> = ({
         </button>
       </div>
 
-      {/* Selected Point Info Window Card */}
+      {/* Selected Point Info Window Card - Mobile Bottom Sheet / Desktop Floating Panel */}
       {selectedPoint && (
-        <div className="absolute bottom-20 left-4 right-4 md:left-6 md:w-80 z-30 bg-slate-900/95 backdrop-blur-md border border-slate-700 rounded-2xl shadow-2xl p-4 text-xs animate-in slide-in-from-bottom duration-200">
+        <div className="absolute bottom-20 md:bottom-6 left-2 right-2 sm:left-4 sm:right-auto sm:w-96 z-30 bg-slate-900/95 backdrop-blur-md border border-slate-700 rounded-2xl shadow-2xl p-3.5 sm:p-4 text-xs animate-in slide-in-from-bottom duration-200 max-h-[60dvh] overflow-y-auto">
           <div className="flex items-start justify-between gap-2 pb-2 border-b border-slate-800">
             <div>
-              <div className="flex items-center gap-1.5 mb-1">
+              <div className="flex items-center gap-1.5 mb-1 flex-wrap">
                 <span
-                  className="px-2 py-0.5 rounded text-[10px] font-bold text-white"
+                  className="px-2 py-0.5 rounded text-[10px] font-bold text-white shadow-sm"
                   style={{ backgroundColor: getSeverityColor(selectedPoint.severity)?.bg || '#dc2626' }}
                 >
                   {getSeverityColor(selectedPoint.severity)?.name || 'สูง (อันตราย)'}
@@ -402,11 +402,12 @@ const LeafletFieldMap: React.FC<LeafletMapProps> = ({
                   {selectedPoint.id}
                 </span>
               </div>
-              <h3 className="font-bold text-white text-sm">{selectedPoint.title}</h3>
+              <h3 className="font-bold text-white text-sm sm:text-base leading-snug">{selectedPoint.title}</h3>
             </div>
             <button
               onClick={() => setSelectedPoint(null)}
-              className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800"
+              className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors shrink-0"
+              aria-label="ปิดการแสดงรายละเอียด"
             >
               ✕
             </button>
@@ -462,54 +463,54 @@ const LeafletFieldMap: React.FC<LeafletMapProps> = ({
       )}
 
       {/* Floating Zoom & Map Engine Switcher */}
-      <div className="absolute top-28 right-3 z-10 flex flex-col gap-2">
+      <div className="absolute top-24 sm:top-28 right-2 sm:right-3 z-10 flex flex-col gap-1.5 sm:gap-2">
         <button
           type="button"
           onClick={handleZoomIn}
-          className="w-10 h-10 rounded-xl bg-slate-900/90 hover:bg-slate-800 text-slate-200 border border-slate-700 shadow-lg flex items-center justify-center active:scale-95"
+          className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-slate-900/90 hover:bg-slate-800 text-slate-200 border border-slate-700 shadow-lg flex items-center justify-center active:scale-95"
           title="ซูมเข้า"
         >
-          <ZoomIn className="w-5 h-5" />
+          <ZoomIn className="w-4 h-4 sm:w-5 sm:h-5" />
         </button>
         <button
           type="button"
           onClick={handleZoomOut}
-          className="w-10 h-10 rounded-xl bg-slate-900/90 hover:bg-slate-800 text-slate-200 border border-slate-700 shadow-lg flex items-center justify-center active:scale-95"
+          className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-slate-900/90 hover:bg-slate-800 text-slate-200 border border-slate-700 shadow-lg flex items-center justify-center active:scale-95"
           title="ซูมออก"
         >
-          <ZoomOut className="w-5 h-5" />
+          <ZoomOut className="w-4 h-4 sm:w-5 sm:h-5" />
         </button>
         {onSwitchToGoogleMaps && (
           <button
             type="button"
             onClick={onSwitchToGoogleMaps}
-            className="w-10 h-10 rounded-xl bg-slate-900/90 hover:bg-slate-800 text-blue-400 border border-slate-700 shadow-lg flex items-center justify-center active:scale-95"
+            className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-slate-900/90 hover:bg-slate-800 text-blue-400 border border-slate-700 shadow-lg flex items-center justify-center active:scale-95"
             title="สลับเป็น Google Maps"
           >
-            <Globe className="w-5 h-5" />
+            <Globe className="w-4 h-4 sm:w-5 sm:h-5" />
           </button>
         )}
       </div>
 
       {/* Bottom Floating Action Controls */}
-      <div className="absolute bottom-6 right-4 flex flex-col gap-2.5 z-20">
+      <div className="absolute bottom-20 md:bottom-6 right-3 sm:right-4 flex flex-col gap-2.5 z-20">
         <button
           type="button"
           onClick={onOpenAddModal}
-          className="w-14 h-14 rounded-full bg-gradient-to-tr from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-white shadow-xl flex items-center justify-center active:scale-95 transition-transform border-2 border-white/20"
+          className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gradient-to-tr from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-white shadow-xl flex items-center justify-center active:scale-95 transition-transform border-2 border-white/20"
           title="บันทึกจุดเสี่ยงใหม่ตรงพิกัดนี้"
         >
-          <Plus className="w-8 h-8 stroke-[2.5]" />
+          <Plus className="w-7 h-7 sm:w-8 sm:h-8 stroke-[2.5]" />
         </button>
 
         <button
           type="button"
           onClick={handleRecenter}
           disabled={!currentGPS}
-          className="w-12 h-12 rounded-xl bg-slate-900/90 hover:bg-slate-800 text-blue-400 border border-slate-700 shadow-lg flex items-center justify-center active:scale-95 transition-all disabled:opacity-50"
+          className="w-11 h-11 sm:w-12 sm:h-12 rounded-xl bg-slate-900/90 hover:bg-slate-800 text-blue-400 border border-slate-700 shadow-lg flex items-center justify-center active:scale-95 transition-all disabled:opacity-50"
           title="จัดกึ่งกลางตำแหน่งปัจจุบัน"
         >
-          <Navigation className="w-6 h-6" />
+          <Navigation className="w-5 h-5 sm:w-6 sm:h-6" />
         </button>
       </div>
     </div>
@@ -571,18 +572,25 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
   return (
     <div className="relative w-full h-full flex-1 flex flex-col min-h-0 bg-slate-950">
       {/* Top Status & Engine Switcher Bar */}
-      <div className="bg-slate-900/90 border-b border-slate-800 px-3 py-1.5 text-xs flex items-center justify-between gap-2 z-30">
-        <div className="flex items-center gap-2">
-          <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
-          <span className="font-semibold text-slate-100">
-            {mapEngine === 'real_map' ? 'แผนที่ดาวเทียมและถนนจริง (Real Street & Satellite Map)' : 'Google Maps Platform'}
+      <div className="bg-slate-900/95 border-b border-slate-800 px-2.5 sm:px-3 py-1.5 text-xs flex items-center justify-between gap-2 z-30">
+        <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
+          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0"></span>
+          <span className="font-semibold text-slate-100 truncate text-[11px] sm:text-xs">
+            {mapEngine === 'real_map' ? (
+              <>
+                <span className="hidden sm:inline">แผนที่ดาวเทียมและถนนจริง (Real Map)</span>
+                <span className="sm:hidden">แผนที่จริง (Real Map)</span>
+              </>
+            ) : (
+              'Google Maps'
+            )}
           </span>
-          <span className="hidden sm:inline px-2 py-0.5 rounded text-[10px] bg-emerald-950 text-emerald-400 border border-emerald-800 font-mono">
+          <span className="hidden md:inline px-1.5 py-0.2 rounded text-[9px] bg-emerald-950 text-emerald-400 border border-emerald-800 font-mono shrink-0">
             LIVE GPS
           </span>
         </div>
 
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
           {mapEngine === 'real_map' ? (
             <button
               type="button"
@@ -593,19 +601,21 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
                   setMapEngine('google_maps');
                 }
               }}
-              className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-blue-400 text-[11px] font-medium border border-slate-700 transition-colors flex items-center gap-1"
+              className="px-2 sm:px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-blue-400 text-[10px] sm:text-[11px] font-medium border border-slate-700 transition-colors flex items-center gap-1"
             >
-              <Globe className="w-3.5 h-3.5" />
-              <span>ใช้ Google Maps</span>
+              <Globe className="w-3.5 h-3.5 shrink-0" />
+              <span className="hidden sm:inline">ใช้ Google Maps</span>
+              <span className="sm:hidden">Google Maps</span>
             </button>
           ) : (
             <button
               type="button"
               onClick={() => setMapEngine('real_map')}
-              className="px-2.5 py-1 rounded-lg bg-orange-600 hover:bg-orange-500 text-white text-[11px] font-medium transition-colors flex items-center gap-1"
+              className="px-2 sm:px-2.5 py-1 rounded-lg bg-orange-600 hover:bg-orange-500 text-white text-[10px] sm:text-[11px] font-medium transition-colors flex items-center gap-1"
             >
-              <Layers className="w-3.5 h-3.5" />
-              <span>กลับสู่แผนที่หลัก</span>
+              <Layers className="w-3.5 h-3.5 shrink-0" />
+              <span className="hidden sm:inline">กลับสู่แผนที่หลัก</span>
+              <span className="sm:hidden">แผนที่หลัก</span>
             </button>
           )}
 
@@ -613,7 +623,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
             <button
               type="button"
               onClick={onSwitchToRadar}
-              className="px-2 py-1 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white font-semibold text-[11px] transition-colors"
+              className="hidden md:inline-flex px-2 sm:px-2.5 py-1 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white font-semibold text-[10px] sm:text-[11px] transition-colors items-center gap-1"
             >
               โหมดเรดาร์
             </button>
@@ -622,11 +632,11 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
       </div>
 
       {/* Top Filter Chips */}
-      <div className="absolute top-10 left-3 right-3 z-20 flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1">
+      <div className="absolute top-10 sm:top-11 left-2 right-2 sm:left-3 sm:right-3 z-20 flex items-center gap-1 sm:gap-1.5 overflow-x-auto no-scrollbar py-1">
         <button
           type="button"
           onClick={() => setFilterSeverity('all')}
-          className={`px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap shadow-md backdrop-blur-md transition-colors ${
+          className={`px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-full text-[11px] sm:text-xs font-semibold whitespace-nowrap shadow-md backdrop-blur-md transition-colors ${
             filterSeverity === 'all'
               ? 'bg-orange-600 text-white border border-orange-500'
               : 'bg-slate-900/80 text-slate-300 border border-slate-700/60 hover:bg-slate-800/80'

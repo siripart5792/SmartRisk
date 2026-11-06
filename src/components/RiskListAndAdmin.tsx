@@ -102,90 +102,93 @@ export const RiskListAndAdmin: React.FC<RiskListProps> = ({
   return (
     <div className="flex-1 flex flex-col w-full h-full bg-slate-950 text-slate-100 overflow-hidden">
       {/* Search & Actions Bar */}
-      <div className="p-3 border-b border-slate-800 bg-slate-900/60 backdrop-blur-sm space-y-2.5">
-        <div className="flex items-center gap-2">
-          <div className="relative flex-1">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="ค้นหาจุดเสี่ยง, ผู้รายงาน, รหัส..."
-              className="w-full pl-9 pr-3 py-1.5 rounded-xl bg-slate-950 border border-slate-800 text-xs md:text-sm text-white placeholder-slate-500 focus:outline-none focus:border-orange-500"
-            />
+      <div className="p-2.5 sm:p-4 border-b border-slate-800 bg-slate-900/60 backdrop-blur-sm space-y-2 sm:space-y-2.5">
+        <div className="max-w-7xl mx-auto w-full space-y-2 sm:space-y-2.5">
+          <div className="flex items-center gap-2">
+            <div className="relative flex-1">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="ค้นหาจุดเสี่ยง, ผู้รายงาน, รหัส..."
+                className="w-full pl-9 pr-3 py-1.5 sm:py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs sm:text-sm text-white placeholder-slate-500 focus:outline-none focus:border-orange-500"
+              />
+            </div>
+
+            <button
+              onClick={onOpenAddModal}
+              className="px-3 py-1.5 sm:py-2 rounded-xl bg-orange-600 hover:bg-orange-500 text-white text-xs sm:text-sm font-semibold shrink-0 active:scale-95 transition-transform flex items-center gap-1 shadow-sm"
+            >
+              <span>+ บันทึกจุดเสี่ยง</span>
+            </button>
+
+            <button
+              onClick={handleExportCSV}
+              title="ส่งออกไฟล์ CSV"
+              className="p-1.5 sm:p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 shrink-0 min-h-[36px] min-w-[36px] flex items-center justify-center transition-colors"
+            >
+              <Download className="w-4 h-4" />
+            </button>
           </div>
 
-          <button
-            onClick={onOpenAddModal}
-            className="px-3 py-1.5 rounded-xl bg-orange-600 hover:bg-orange-500 text-white text-xs font-semibold shrink-0 active:scale-95 transition-transform"
-          >
-            + บันทึกจุดเสี่ยง
-          </button>
-
-          <button
-            onClick={handleExportCSV}
-            title="ส่งออกไฟล์ CSV"
-            className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 shrink-0"
-          >
-            <Download className="w-4 h-4" />
-          </button>
-        </div>
-
-        {/* Filter Pills */}
-        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar text-xs">
-          <span className="text-[11px] text-slate-500 shrink-0 flex items-center gap-1">
-            <Filter className="w-3 h-3" /> สถานะ:
-          </span>
-          <button
-            onClick={() => setStatusFilter('all')}
-            className={`px-2.5 py-1 rounded-lg shrink-0 font-medium ${
-              statusFilter === 'all'
-                ? 'bg-slate-700 text-white'
-                : 'bg-slate-900 text-slate-400 hover:text-white'
-            }`}
-          >
-            ทั้งหมด ({points.length})
-          </button>
-          <button
-            onClick={() => setStatusFilter('pending_review')}
-            className={`px-2.5 py-1 rounded-lg shrink-0 font-medium ${
-              statusFilter === 'pending_review'
-                ? 'bg-amber-600 text-white'
-                : 'bg-slate-900 text-amber-400 hover:text-white'
-            }`}
-          >
-            รอตรวจ ({points.filter((p) => p.status === 'pending_review').length})
-          </button>
-          <button
-            onClick={() => setStatusFilter('approved')}
-            className={`px-2.5 py-1 rounded-lg shrink-0 font-medium ${
-              statusFilter === 'approved'
-                ? 'bg-emerald-600 text-white'
-                : 'bg-slate-900 text-emerald-400 hover:text-white'
-            }`}
-          >
-            อนุมัติแล้ว ({points.filter((p) => p.status === 'approved').length})
-          </button>
+          {/* Filter Pills */}
+          <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar text-xs">
+            <span className="text-[11px] text-slate-500 shrink-0 flex items-center gap-1">
+              <Filter className="w-3 h-3" /> สถานะ:
+            </span>
+            <button
+              onClick={() => setStatusFilter('all')}
+              className={`px-2.5 py-1 rounded-lg shrink-0 font-medium ${
+                statusFilter === 'all'
+                  ? 'bg-slate-700 text-white font-semibold'
+                  : 'bg-slate-900 text-slate-400 hover:text-white'
+              }`}
+            >
+              ทั้งหมด ({points.length})
+            </button>
+            <button
+              onClick={() => setStatusFilter('pending_review')}
+              className={`px-2.5 py-1 rounded-lg shrink-0 font-medium ${
+                statusFilter === 'pending_review'
+                  ? 'bg-amber-600 text-white font-semibold'
+                  : 'bg-slate-900 text-amber-400 hover:text-white'
+              }`}
+            >
+              รอตรวจ ({points.filter((p) => p.status === 'pending_review').length})
+            </button>
+            <button
+              onClick={() => setStatusFilter('approved')}
+              className={`px-2.5 py-1 rounded-lg shrink-0 font-medium ${
+                statusFilter === 'approved'
+                  ? 'bg-emerald-600 text-white font-semibold'
+                  : 'bg-slate-900 text-emerald-400 hover:text-white'
+              }`}
+            >
+              อนุมัติแล้ว ({points.filter((p) => p.status === 'approved').length})
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* List Container */}
-      <div className="flex-1 overflow-y-auto p-3 space-y-2.5 max-w-3xl mx-auto w-full">
+      {/* List Container - Responsive Grid (1 col on mobile, 2 col on tablet, 3 col on desktop) */}
+      <div className="flex-1 overflow-y-auto p-2.5 sm:p-4 pb-24 md:pb-6 max-w-7xl mx-auto w-full">
         {filteredPoints.length === 0 ? (
-          <div className="text-center py-12 text-slate-500 space-y-2">
+          <div className="text-center py-16 text-slate-500 space-y-2">
             <AlertTriangle className="w-10 h-10 mx-auto text-slate-600" />
             <p className="text-sm">ไม่พบรายการจุดเสี่ยงที่ตรงกับเงื่อนไข</p>
           </div>
         ) : (
-          filteredPoints.map((point) => {
-            const isHigh = point.severity === 'high';
-            const isMedium = point.severity === 'medium';
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-4">
+            {filteredPoints.map((point) => {
+              const isHigh = point.severity === 'high';
+              const isMedium = point.severity === 'medium';
 
-            return (
-              <div
-                key={point.id}
-                className="p-3.5 rounded-2xl bg-slate-900/90 border border-slate-800 hover:border-slate-700 shadow-md transition-all space-y-2"
-              >
+              return (
+                <div
+                  key={point.id}
+                  className="p-3.5 rounded-2xl bg-slate-900/90 border border-slate-800 hover:border-slate-700 shadow-md transition-all space-y-2 flex flex-col justify-between"
+                >
                 {/* Header row */}
                 <div className="flex items-start justify-between gap-2">
                   <div className="space-y-1">
@@ -292,7 +295,8 @@ export const RiskListAndAdmin: React.FC<RiskListProps> = ({
                 </div>
               </div>
             );
-          })
+          })}
+          </div>
         )}
       </div>
 

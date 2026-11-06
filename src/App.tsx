@@ -46,6 +46,7 @@ import { SettingsModal } from './components/SettingsModal';
 import { GeofenceAlertBanner } from './components/GeofenceAlertBanner';
 import { AdminPinModal } from './components/AdminPinModal';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { MobileBottomNav } from './components/MobileBottomNav';
 
 export default function App() {
   // --- STATE ---
@@ -425,7 +426,7 @@ export default function App() {
     firebaseConfig.apiKey;
 
   return (
-    <div className="flex flex-col h-screen w-screen overflow-hidden bg-slate-950 select-none">
+    <div className="flex flex-col h-[100dvh] w-full max-w-full overflow-hidden bg-slate-950 select-none">
       {/* Top Header */}
       <Header
         isOnline={isBrowserOnline}
@@ -503,6 +504,15 @@ export default function App() {
           )}
         </ErrorBoundary>
       </main>
+
+      {/* Mobile Bottom Navigation Bar (Hidden on md and desktop) */}
+      <MobileBottomNav
+        activeView={activeView}
+        onViewChange={setActiveView}
+        onOpenAddModal={() => setIsAddModalOpen(true)}
+        onOpenSheetsModal={() => setIsSheetsModalOpen(true)}
+        pointsCount={points.length}
+      />
 
       {/* Modals */}
       <AddRiskModal

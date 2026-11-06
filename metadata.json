@@ -1,0 +1,10 @@
+{
+  "name": "GeoRisk Field Ops - แอปสำรวจเส้นทางและประเมินจุดเสี่ยงภาคสนาม",
+  "description": "ระบบสำรวจเส้นทางและประเมินจุดเสี่ยงภาคสนาม รองรับ Offline-First, Real-time GPS Tracking, Geofence Alert, ซิงก์ข้อมูลอัตโนมัติขึ้น Google Sheets และระบบแบ่งสิทธิ์ RBAC",
+  "requestFramePermissions": [
+    "geolocation"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

@@ -44,6 +44,7 @@ import { GoogleSheetsModal } from './components/GoogleSheetsModal';
 import { SettingsModal } from './components/SettingsModal';
 import { GeofenceAlertBanner } from './components/GeofenceAlertBanner';
 import { AdminPinModal } from './components/AdminPinModal';
+import { ErrorBoundary } from './components/ErrorBoundary';
 
 export default function App() {
   // --- STATE ---
@@ -267,6 +268,19 @@ export default function App() {
     }
   }, [effectiveOnline, settings.autoSyncOnOnline, pendingQueue.length, handleBatchSync]);
 
+  // Continuous background auto-sync every 20 seconds whenever there are pending items
+  useEffect(() => {
+    if (!effectiveOnline) return;
+
+    const intervalId = setInterval(() => {
+      if (pendingQueue.length > 0 && !isSyncing) {
+        handleBatchSync();
+      }
+    }, 20000);
+
+    return () => clearInterval(intervalId);
+  }, [effectiveOnline, pendingQueue.length, isSyncing, handleBatchSync]);
+
   // --- ACTIONS ---
 
   const handleToggleSimulatedOffline = () => {
@@ -317,6 +331,11 @@ export default function App() {
     if (token && settings.googleSheetId && point.sheetRowIndex) {
       updatePointStatusInSheet(token, settings.googleSheetId, point.sheetRowIndex, 'approved', 'อนุมัติโดยแอดมิน');
     }
+
+    // Auto-sync immediately every time!
+    if (effectiveOnline) {
+      handleBatchSync();
+    }
   };
 
   const handleRejectPoint = async (point: RiskPoint) => {
@@ -330,6 +349,11 @@ export default function App() {
     const token = await getAccessToken();
     if (token && settings.googleSheetId && point.sheetRowIndex) {
       updatePointStatusInSheet(token, settings.googleSheetId, point.sheetRowIndex, 'rejected', 'ไม่อนุมัติโดยแอดมิน');
+    }
+
+    // Auto-sync immediately every time!
+    if (effectiveOnline) {
+      handleBatchSync();
     }
   };
 
@@ -423,46 +447,49 @@ export default function App() {
         }}
       />
 
-      {/* Main View Area */}
+      {/* Main View Area with Error Boundary Protection */}
       <main className="flex-1 relative flex flex-col min-h-0 overflow-hidden">
-        {activeView === 'map' && (
-          <InteractiveMap
-            apiKey={mapsApiKey}
-            points={points}
-            currentGPS={currentGPS}
-            onSelectPoint={(point) => {}}
-            onOpenAddModal={() => setIsAddModalOpen(true)}
-            currentUserRole={userProfile.role}
-            onApprovePoint={handleApprovePoint}
-            onRejectPoint={handleRejectPoint}
-            alertRadiusMeters={settings.alertRadiusMeters}
-          />
-        )}
+        <ErrorBoundary fallbackView="radar" onSwitchView={setActiveView}>
+          {activeView === 'map' && (
+            <InteractiveMap
+              apiKey={mapsApiKey}
+              points={points}
+              currentGPS={currentGPS}
+              onSelectPoint={(point) => {}}
+              onOpenAddModal={() => setIsAddModalOpen(true)}
+              currentUserRole={userProfile.role}
+              onApprovePoint={handleApprovePoint}
+              onRejectPoint={handleRejectPoint}
+              alertRadiusMeters={settings.alertRadiusMeters}
+              onSwitchToRadar={() => setActiveView('radar')}
+            />
+          )}
 
-        {activeView === 'radar' && (
-          <OfflineRadarFallback
-            points={points}
-            currentGPS={currentGPS}
-            alertRadiusMeters={settings.alertRadiusMeters}
-            onSelectPoint={(point) => {}}
-            onOpenAddModal={() => setIsAddModalOpen(true)}
-          />
-        )}
+          {activeView === 'radar' && (
+            <OfflineRadarFallback
+              points={points}
+              currentGPS={currentGPS}
+              alertRadiusMeters={settings.alertRadiusMeters}
+              onSelectPoint={(point) => {}}
+              onOpenAddModal={() => setIsAddModalOpen(true)}
+            />
+          )}
 
-        {activeView === 'list' && (
-          <RiskListAndAdmin
-            points={points}
-            currentGPS={currentGPS}
-            currentUserRole={userProfile.role}
-            onSelectPoint={(point) => {
-              setActiveView('map');
-            }}
-            onApprovePoint={handleApprovePoint}
-            onRejectPoint={handleRejectPoint}
-            onDeletePoint={handleDeletePoint}
-            onOpenAddModal={() => setIsAddModalOpen(true)}
-          />
-        )}
+          {activeView === 'list' && (
+            <RiskListAndAdmin
+              points={points}
+              currentGPS={currentGPS}
+              currentUserRole={userProfile.role}
+              onSelectPoint={(point) => {
+                setActiveView('map');
+              }}
+              onApprovePoint={handleApprovePoint}
+              onRejectPoint={handleRejectPoint}
+              onDeletePoint={handleDeletePoint}
+              onOpenAddModal={() => setIsAddModalOpen(true)}
+            />
+          )}
+        </ErrorBoundary>
       </main>
 
       {/* Modals */}

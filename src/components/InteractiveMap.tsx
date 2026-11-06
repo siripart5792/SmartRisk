@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   APIProvider,
   Map,
@@ -22,6 +22,7 @@ import {
   Clock,
   ExternalLink,
   Plus,
+  RefreshCw,
 } from 'lucide-react';
 import { RiskPoint, GPSPosition, RiskSeverity, RiskCategory, UserRole } from '../types';
 
@@ -35,6 +36,7 @@ interface InteractiveMapProps {
   onApprovePoint?: (point: RiskPoint) => void;
   onRejectPoint?: (point: RiskPoint) => void;
   alertRadiusMeters: number;
+  onSwitchToRadar?: () => void;
 }
 
 // Icon mapper for risk categories
@@ -73,7 +75,25 @@ const getSeverityColor = (severity: RiskSeverity) => {
   }
 };
 
-// Sub-component for Recenter Button
+// Auto-Pan to User Position when GPS is first acquired
+const MapAutoPan: React.FC<{ currentGPS: GPSPosition | null }> = ({ currentGPS }) => {
+  const map = useMap();
+  const hasAutoCentered = useRef(false);
+
+  useEffect(() => {
+    if (map && currentGPS && !hasAutoCentered.current) {
+      if (typeof currentGPS.lat === 'number' && !isNaN(currentGPS.lat)) {
+        map.panTo({ lat: currentGPS.lat, lng: currentGPS.lng });
+        map.setZoom(15);
+        hasAutoCentered.current = true;
+      }
+    }
+  }, [map, currentGPS]);
+
+  return null;
+};
+
+// Sub-component for Recenter and Add Button
 const MapControls: React.FC<{
   currentGPS: GPSPosition | null;
   onOpenAddModal: () => void;
@@ -81,7 +101,7 @@ const MapControls: React.FC<{
   const map = useMap();
 
   const handleRecenter = useCallback(() => {
-    if (map && currentGPS) {
+    if (map && currentGPS && typeof currentGPS.lat === 'number' && !isNaN(currentGPS.lat)) {
       map.panTo({ lat: currentGPS.lat, lng: currentGPS.lng });
       map.setZoom(16);
     }
@@ -121,10 +141,12 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
   onApprovePoint,
   onRejectPoint,
   alertRadiusMeters,
+  onSwitchToRadar,
 }) => {
   const [selectedPoint, setSelectedPoint] = useState<RiskPoint | null>(null);
   const [filterSeverity, setFilterSeverity] = useState<string>('all');
   const [quotaExceeded, setQuotaExceeded] = useState(false);
+  const [mapLoadError, setMapLoadError] = useState(false);
 
   // Listen for Google Maps Platform quota event
   useEffect(() => {
@@ -133,13 +155,17 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     return () => window.removeEventListener('gmp-quota-exceeded', handleQuota);
   }, []);
 
-  // Default Center (Chiang Mai / Thailand Northern Survey default or user GPS)
-  const defaultCenter = currentGPS
-    ? { lat: currentGPS.lat, lng: currentGPS.lng }
-    : { lat: 18.7904, lng: 98.9853 };
+  // Safe Default Center
+  const defaultCenter =
+    currentGPS && typeof currentGPS.lat === 'number' && !isNaN(currentGPS.lat)
+      ? { lat: currentGPS.lat, lng: currentGPS.lng }
+      : { lat: 18.7904, lng: 98.9853 };
 
-  // Filtered Points
+  // Filtered Points with valid coordinate validation
   const visiblePoints = points.filter((p) => {
+    if (typeof p.lat !== 'number' || isNaN(p.lat) || typeof p.lng !== 'number' || isNaN(p.lng)) {
+      return false;
+    }
     if (filterSeverity === 'all') return true;
     return p.severity === filterSeverity;
   });
@@ -164,6 +190,21 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
         </div>
       )}
 
+      {/* Map Load Error Fallback Banner */}
+      {mapLoadError && (
+        <div className="bg-amber-950/90 border-b border-amber-700/80 text-amber-200 px-4 py-2 text-xs flex items-center justify-between gap-2 z-30">
+          <span>ไม่สามารถโหลดแผนที่ Google Maps ได้ (กำลังทำงานในโหมดสำรวจออฟไลน์)</span>
+          {onSwitchToRadar && (
+            <button
+              onClick={onSwitchToRadar}
+              className="px-2.5 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-[11px] shrink-0"
+            >
+              เปิดโหมดเรดาร์
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Top Filter Chips */}
       <div className="absolute top-3 left-3 right-3 z-20 flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1">
         <button
@@ -184,8 +225,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
               : 'bg-slate-900/80 text-red-400 border border-slate-700/60 hover:bg-slate-800/80'
           }`}
         >
-          วิกฤต (
-          {points.filter((p) => p.severity === 'critical').length})
+          วิกฤต ({points.filter((p) => p.severity === 'critical').length})
         </button>
         <button
           onClick={() => setFilterSeverity('high')}
@@ -210,8 +250,17 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
       </div>
 
       {/* Main Google Maps View */}
-      <div className="w-full h-full flex-1 relative">
-        <APIProvider apiKey={apiKey} language="th" region="TH">
+      <div className="w-full h-full flex-1 relative min-h-[300px]">
+        <APIProvider
+          apiKey={apiKey}
+          libraries={['marker']}
+          language="th"
+          region="TH"
+          onError={(err) => {
+            console.warn('APIProvider load error:', err);
+            setMapLoadError(true);
+          }}
+        >
           <Map
             defaultCenter={defaultCenter}
             defaultZoom={14}
@@ -222,29 +271,35 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
             className="w-full h-full"
             style={{ width: '100%', height: '100%' }}
           >
+            <MapAutoPan currentGPS={currentGPS} />
+
             {/* Live GPS Current User Position Marker */}
-            {currentGPS && (
-              <AdvancedMarker
-                position={{ lat: currentGPS.lat, lng: currentGPS.lng }}
-                title="ตำแหน่งปัจจุบันของคุณ"
-              >
-                <div className="relative flex items-center justify-center">
-                  <div className="absolute w-8 h-8 rounded-full bg-blue-500/30 animate-pulse-ring"></div>
-                  <div className="w-5 h-5 rounded-full bg-blue-500 border-2 border-white shadow-lg flex items-center justify-center">
-                    <div className="w-2 h-2 rounded-full bg-white"></div>
+            {currentGPS &&
+              typeof currentGPS.lat === 'number' &&
+              !isNaN(currentGPS.lat) &&
+              typeof currentGPS.lng === 'number' &&
+              !isNaN(currentGPS.lng) && (
+                <AdvancedMarker
+                  position={{ lat: currentGPS.lat, lng: currentGPS.lng }}
+                  title="ตำแหน่งปัจจุบันของคุณ"
+                >
+                  <div className="relative flex items-center justify-center">
+                    <div className="absolute w-8 h-8 rounded-full bg-blue-500/30 animate-pulse-ring"></div>
+                    <div className="w-5 h-5 rounded-full bg-blue-500 border-2 border-white shadow-lg flex items-center justify-center">
+                      <div className="w-2 h-2 rounded-full bg-white"></div>
+                    </div>
+                    {typeof currentGPS.heading === 'number' && !isNaN(currentGPS.heading) && (
+                      <div
+                        className="absolute -top-3 w-0 h-0 border-l-[4px] border-l-transparent border-r-[4px] border-r-transparent border-b-[8px] border-b-blue-400"
+                        style={{
+                          transform: `rotate(${currentGPS.heading}deg)`,
+                          transformOrigin: 'center 16px',
+                        }}
+                      />
+                    )}
                   </div>
-                  {currentGPS.heading !== null && (
-                    <div
-                      className="absolute -top-3 w-0 h-0 border-l-[4px] border-l-transparent border-r-[4px] border-r-transparent border-b-[8px] border-b-blue-400"
-                      style={{
-                        transform: `rotate(${currentGPS.heading}deg)`,
-                        transformOrigin: 'center 16px',
-                      }}
-                    />
-                  )}
-                </div>
-              </AdvancedMarker>
-            )}
+                </AdvancedMarker>
+              )}
 
             {/* Risk Points Advanced Markers */}
             {visiblePoints.map((point) => {

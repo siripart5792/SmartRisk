@@ -56,7 +56,7 @@ export const Header: React.FC<HeaderProps> = ({
           <div>
             <div className="flex items-center gap-1.5">
               <span className="font-bold text-sm md:text-base text-white tracking-wide">
-                GeoRisk Field
+                SmartRisk Field
               </span>
               <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold tracking-wider bg-orange-950/80 text-orange-400 border border-orange-800/50">
                 OPS

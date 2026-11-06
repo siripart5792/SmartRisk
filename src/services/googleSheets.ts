@@ -12,18 +12,19 @@ export interface SheetCreationResult {
 }
 
 const CATEGORY_NAMES: Record<RiskCategory, string> = {
+  sharp_curve: 'โค้งอันตราย',
+  steep_slope: 'ทางลาดชัน',
+  no_lighting: 'ไม่มีไฟส่องสว่าง',
+  accident_prone: 'มีอุบัติเหตุบ่อยครั้ง',
   electrical: 'เสา/สายไฟฟ้าชำรุด',
-  landslide: 'ดินสไลด์/หินร่วง',
   flood: 'น้ำท่วมขัง/ทางขาด',
   road_damage: 'ถนนชำรุด/หลุมลึก',
-  tree_fall: 'ต้นไม้ล้มขวางทาง',
   bridge_damage: 'สะพานชำรุด',
   signal_deadzone: 'จุดอับสัญญาณ',
   other: 'อื่นๆ',
 };
 
 const SEVERITY_NAMES: Record<RiskSeverity, string> = {
-  critical: 'วิกฤต (อันตรายมาก)',
   high: 'สูง (อันตราย)',
   medium: 'ปานกลาง',
   low: 'ต่ำ/เฝ้าระวัง',
@@ -238,10 +239,14 @@ export async function fetchRiskPointsFromSheet(
 
     // Map back severity
     let severity: RiskSeverity = 'medium';
-    for (const [key, val] of Object.entries(SEVERITY_NAMES)) {
-      if (val === sevName || key === sevName) {
-        severity = key as RiskSeverity;
-        break;
+    if (sevName === 'วิกฤต' || sevName === 'critical') {
+      severity = 'high';
+    } else {
+      for (const [key, val] of Object.entries(SEVERITY_NAMES)) {
+        if (val === sevName || key === sevName) {
+          severity = key as RiskSeverity;
+          break;
+        }
       }
     }
 

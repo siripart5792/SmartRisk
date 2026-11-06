@@ -178,8 +178,8 @@ export const RiskListAndAdmin: React.FC<RiskListProps> = ({
           </div>
         ) : (
           filteredPoints.map((point) => {
-            const isCritical = point.severity === 'critical';
             const isHigh = point.severity === 'high';
+            const isMedium = point.severity === 'medium';
 
             return (
               <div
@@ -192,11 +192,11 @@ export const RiskListAndAdmin: React.FC<RiskListProps> = ({
                     <div className="flex items-center gap-1.5 flex-wrap">
                       <span
                         className={`w-2 h-2 rounded-full ${
-                          isCritical
+                          isHigh
                             ? 'bg-red-500'
-                            : isHigh
-                            ? 'bg-orange-500'
-                            : 'bg-yellow-400'
+                            : isMedium
+                            ? 'bg-amber-400'
+                            : 'bg-blue-400'
                         }`}
                       />
                       <h3

@@ -3,14 +3,16 @@ import {
   X,
   MapPin,
   Zap,
-  Mountain,
   Waves,
   Cone,
-  Trees,
   Construction,
   Radio,
   AlertOctagon,
   Check,
+  CornerUpRight,
+  TrendingDown,
+  LightbulbOff,
+  Car,
 } from 'lucide-react';
 import {
   RiskCategory,
@@ -30,21 +32,22 @@ interface AddRiskModalProps {
 }
 
 const CATEGORIES: { id: RiskCategory; label: string; icon: React.ElementType }[] = [
+  { id: 'sharp_curve', label: 'โค้งอันตราย', icon: CornerUpRight },
+  { id: 'steep_slope', label: 'ทางลาดชัน', icon: TrendingDown },
+  { id: 'no_lighting', label: 'ไม่มีไฟส่องสว่าง', icon: LightbulbOff },
+  { id: 'accident_prone', label: 'มีอุบัติเหตุบ่อยครั้ง', icon: Car },
   { id: 'electrical', label: 'เสา/สายไฟฟ้า', icon: Zap },
-  { id: 'landslide', label: 'ดินสไลด์/หิน', icon: Mountain },
   { id: 'flood', label: 'น้ำท่วม/ทางขาด', icon: Waves },
   { id: 'road_damage', label: 'ถนนชำรุด/หลุม', icon: Cone },
-  { id: 'tree_fall', label: 'ต้นไม้โค่นขวาง', icon: Trees },
   { id: 'bridge_damage', label: 'สะพานชำรุด', icon: Construction },
   { id: 'signal_deadzone', label: 'จุดอับสัญญาณ', icon: Radio },
   { id: 'other', label: 'ความเสี่ยงอื่นๆ', icon: AlertOctagon },
 ];
 
 const SEVERITIES: { id: RiskSeverity; label: string; color: string; desc: string }[] = [
-  { id: 'critical', label: 'วิกฤต', color: 'bg-red-600 hover:bg-red-500 border-red-500', desc: 'อันตรายถึงชีวิต ห้ามผ่าน' },
-  { id: 'high', label: 'สูง', color: 'bg-orange-600 hover:bg-orange-500 border-orange-500', desc: 'เสี่ยงอันตรายรุนแรง รถเล็กผ่านไม่ได้' },
-  { id: 'medium', label: 'ปานกลาง', color: 'bg-amber-600 hover:bg-amber-500 border-amber-500', desc: 'ต้องใช้ความระมัดระวังเป็นพิเศษ' },
-  { id: 'low', label: 'เฝ้าระวัง', color: 'bg-blue-600 hover:bg-blue-500 border-blue-500', desc: 'ความเสี่ยงต่ำ ควรสังเกตการณ์' },
+  { id: 'high', label: 'สูง (อันตราย)', color: 'bg-orange-600 hover:bg-orange-500 border-orange-500', desc: 'เสี่ยงอันตรายรุนแรง ต้องระมัดระวังสูงสุด' },
+  { id: 'medium', label: 'ปานกลาง', color: 'bg-amber-600 hover:bg-amber-500 border-amber-500', desc: 'ต้องใช้ความระมัดระวังในการสัญจร' },
+  { id: 'low', label: 'ต่ำ / เฝ้าระวัง', color: 'bg-blue-600 hover:bg-blue-500 border-blue-500', desc: 'ความเสี่ยงต่ำ ควรสังเกตการณ์เป็นระยะ' },
 ];
 
 export const AddRiskModal: React.FC<AddRiskModalProps> = ({
@@ -55,7 +58,7 @@ export const AddRiskModal: React.FC<AddRiskModalProps> = ({
   currentUserRole,
   currentUserName,
 }) => {
-  const [category, setCategory] = useState<RiskCategory>('electrical');
+  const [category, setCategory] = useState<RiskCategory>('sharp_curve');
   const [severity, setSeverity] = useState<RiskSeverity>('high');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');

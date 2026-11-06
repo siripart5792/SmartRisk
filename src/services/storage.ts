@@ -3,7 +3,7 @@
  * Ensures 100% resilient offline data persistence and automatic synchronization queue.
  */
 
-import { RiskPoint, AppSettings, UserProfile, SyncLog } from '../types';
+import { RiskPoint, RiskCategory, RiskSeverity, AppSettings, UserProfile, SyncLog } from '../types';
 
 const DB_NAME = 'GeoRiskFieldOps_DB';
 const DB_VERSION = 1;
@@ -29,9 +29,9 @@ export const DEFAULT_SETTINGS: AppSettings = {
 export const SEED_RISK_POINTS: RiskPoint[] = [
   {
     id: 'RISK-TH-001',
-    title: 'เสาไฟฟ้าเอียงใกล้สายไฟแรงสูงพาดข้ามทาง',
-    category: 'electrical',
-    severity: 'critical',
+    title: 'ทางโค้งหักศอกรัศมีแคบ บดบังทัศนวิสัย',
+    category: 'sharp_curve',
+    severity: 'high',
     status: 'approved',
     lat: 18.7904,
     lng: 98.9853,
@@ -39,7 +39,7 @@ export const SEED_RISK_POINTS: RiskPoint[] = [
     reporterName: 'นายสิริภาส (PEA)',
     reporterRole: 'admin',
     reporterUnit: 'ทีมสำรวจสายส่งและระบบจำหน่าย',
-    description: 'เสาคอนกรีต 12 เมตร โคนเสาถูกน้ำกัดเซาะ เสาเอียงประมาณ 15 องศา เสี่ยงล้มทับผิวจราจรและดึงสายแรงสูงขาด',
+    description: 'ทางโค้งหักศอกรูปตัวเอส ไม่มีกระจกโค้งส่องทาง รถสวนทางมองไม่เห็น เสี่ยงหลุดโค้งชนเสาไฟ',
     createdAt: new Date(Date.now() - 86400000 * 2).toISOString(),
     updatedAt: new Date(Date.now() - 86400000 * 2).toISOString(),
     syncStatus: 'synced',
@@ -47,8 +47,8 @@ export const SEED_RISK_POINTS: RiskPoint[] = [
   },
   {
     id: 'RISK-TH-002',
-    title: 'ดินสไลด์ปิดทับช่องทางจราจร 1 ช่องทาง',
-    category: 'landslide',
+    title: 'ทางลาดชันเขาลาดเอียงเกิน 12% ผิวทางลื่น',
+    category: 'steep_slope',
     severity: 'high',
     status: 'approved',
     lat: 18.7980,
@@ -57,7 +57,7 @@ export const SEED_RISK_POINTS: RiskPoint[] = [
     reporterName: 'สมชาย ประจำการ',
     reporterRole: 'staff',
     reporterUnit: 'ทีมช่างภาคสนามเขต 1',
-    description: 'ดินภูเขาและหินร่วงจากหน้าผาฝนตกหนัก มีเศษดินบนผิวทางลื่นมาก รถผ่านได้ทีละคัน',
+    description: 'ทางลงเขาลาดชันต่อเนื่องยาว 800 เมตร มีคราบน้ำมันและดินทราย รถบรรทุกหนักเบรกไหม้บ่อย',
     createdAt: new Date(Date.now() - 86400000).toISOString(),
     updatedAt: new Date(Date.now() - 86400000).toISOString(),
     syncStatus: 'synced',
@@ -65,9 +65,9 @@ export const SEED_RISK_POINTS: RiskPoint[] = [
   },
   {
     id: 'RISK-TH-003',
-    title: 'สะพานข้ามห้วย คอสะพานทรุดตัวแตกร้าว',
-    category: 'bridge_damage',
-    severity: 'critical',
+    title: 'ช่วงทางมืดสนิท ไม่มีไฟส่องสว่างสาธารณะ',
+    category: 'no_lighting',
+    severity: 'medium',
     status: 'pending_review',
     lat: 18.8050,
     lng: 98.9920,
@@ -75,16 +75,16 @@ export const SEED_RISK_POINTS: RiskPoint[] = [
     reporterName: 'อนุชา ภาคสนาม',
     reporterRole: 'staff',
     reporterUnit: 'ทีมสำรวจเส้นทางฉุกเฉิน',
-    description: 'คอสะพานทรุดลงประมาณ 10 ซม. ผิวแอสฟัลต์แยกตัว รถบรรทุกหนักไม่ควรผ่าน',
+    description: 'ถนนไม่มีโคมไฟถนนสาธารณะระยะทาง 1.5 กม. ในเวลากลางคืนมืดสนิท มีคนข้ามถนนเสี่ยงถูกชน',
     createdAt: new Date(Date.now() - 3600000 * 5).toISOString(),
     updatedAt: new Date(Date.now() - 3600000 * 5).toISOString(),
     syncStatus: 'pending',
   },
   {
     id: 'RISK-TH-004',
-    title: 'จุดอับสัญญาณวิทยุสื่อสารและเครือข่ายมือถือ',
-    category: 'signal_deadzone',
-    severity: 'medium',
+    title: 'จุดทางแยกอันตราย เกิดอุบัติเหตุบ่อยครั้ง',
+    category: 'accident_prone',
+    severity: 'high',
     status: 'approved',
     lat: 18.7830,
     lng: 98.9700,
@@ -92,7 +92,7 @@ export const SEED_RISK_POINTS: RiskPoint[] = [
     reporterName: 'นิติ วงศ์ษา',
     reporterRole: 'staff',
     reporterUnit: 'ฝ่ายเทคโนโลยีการสื่อสาร',
-    description: 'ช่วงหุบเขายาว 1.2 กิโลเมตร ไม่มีสัญญาณ 4G/5G และวิทยุสื่อสาร VHF มีสัญญาณขาดหาย',
+    description: 'ทางแยกเชื่อมถนนสายรองตัดสายหลัก ไม่มีสัญญาณไฟชะลอความเร็ว เกิดอุบัติเหตุชนท้ายและชนด้านข้างซ้ำซ้อน',
     createdAt: new Date(Date.now() - 86400000 * 3).toISOString(),
     updatedAt: new Date(Date.now() - 86400000 * 3).toISOString(),
     syncStatus: 'synced',
@@ -100,8 +100,8 @@ export const SEED_RISK_POINTS: RiskPoint[] = [
   },
   {
     id: 'RISK-TH-005',
-    title: 'ทางโค้งหักศอก น้ำป่าไหลหลากข้ามผิวทาง',
-    category: 'flood',
+    title: 'เสาไฟฟ้าเอียงใกล้สายไฟแรงสูงพาดข้ามทาง',
+    category: 'electrical',
     severity: 'high',
     status: 'approved',
     lat: 18.7750,
@@ -110,7 +110,7 @@ export const SEED_RISK_POINTS: RiskPoint[] = [
     reporterName: 'ชัยพร สายตรวจ',
     reporterRole: 'staff',
     reporterUnit: 'หน่วยบรรเทาสาธารณภัย',
-    description: 'น้ำป่าไหลล้นท่อระบายน้ำ ระดับน้ำสูงประมาณ 20-30 ซม. ไหลเชี่ยว รถเล็กไม่ควรผ่าน',
+    description: 'เสาคอนกรีต 12 เมตร โคนเสาถูกน้ำกัดเซาะ เสาเอียงประมาณ 15 องศา เสี่ยงล้มทับผิวจราจร',
     createdAt: new Date(Date.now() - 3600000 * 12).toISOString(),
     updatedAt: new Date(Date.now() - 3600000 * 12).toISOString(),
     syncStatus: 'synced',
@@ -179,6 +179,57 @@ class StorageService {
     });
   }
 
+  // --- DATA SANITIZATION & MIGRATION HELPER ---
+  public sanitizePoint(raw: any): RiskPoint {
+    if (!raw) {
+      return {
+        id: 'PT-' + Date.now(),
+        title: 'จุดเสี่ยง',
+        category: 'other',
+        severity: 'high',
+        status: 'pending_review',
+        lat: 18.7904,
+        lng: 98.9853,
+        accuracy: 10,
+        reporterName: 'เจ้าหน้าที่',
+        reporterRole: 'staff',
+        reporterUnit: 'หน่วยปฏิบัติการภาคสนาม',
+        description: '',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        syncStatus: 'synced',
+      };
+    }
+
+    // Map legacy 'critical' or invalid severity to 'high'
+    let severity: RiskSeverity = 'medium';
+    if (raw.severity === 'high' || raw.severity === 'critical') {
+      severity = 'high';
+    } else if (raw.severity === 'low') {
+      severity = 'low';
+    } else if (raw.severity === 'medium') {
+      severity = 'medium';
+    } else {
+      severity = 'high';
+    }
+
+    // Map removed categories to current valid categories
+    let category: RiskCategory = raw.category || 'other';
+    if ((category as string) === 'tree_fall') category = 'other';
+    if ((category as string) === 'landslide') category = 'road_damage';
+
+    const lat = typeof raw.lat === 'number' && !isNaN(raw.lat) ? raw.lat : 18.7904;
+    const lng = typeof raw.lng === 'number' && !isNaN(raw.lng) ? raw.lng : 98.9853;
+
+    return {
+      ...raw,
+      severity,
+      category,
+      lat,
+      lng,
+    };
+  }
+
   // --- RISK POINTS CRUD ---
 
   public async getAllRiskPoints(): Promise<RiskPoint[]> {
@@ -189,7 +240,13 @@ class StorageService {
         this.saveToLocalStorage(STORE_POINTS, SEED_RISK_POINTS);
         return SEED_RISK_POINTS;
       }
-      return JSON.parse(raw);
+      try {
+        const parsed = JSON.parse(raw);
+        const list = Array.isArray(parsed) ? parsed : [];
+        return list.map((p: any) => this.sanitizePoint(p));
+      } catch {
+        return SEED_RISK_POINTS;
+      }
     }
 
     return new Promise((resolve) => {
@@ -198,12 +255,25 @@ class StorageService {
       const req = store.getAll();
 
       req.onsuccess = () => {
-        const points = req.result as RiskPoint[];
+        const points = (req.result as any[]) || [];
         if (points.length === 0) {
           // Pre-seed initial points
           this.batchSaveRiskPoints(SEED_RISK_POINTS).then(() => resolve(SEED_RISK_POINTS));
         } else {
-          resolve(points);
+          let hasLegacyData = false;
+          const sanitized = points.map((p) => {
+            if (p.severity === 'critical' || p.category === 'tree_fall' || p.category === 'landslide') {
+              hasLegacyData = true;
+            }
+            return this.sanitizePoint(p);
+          });
+
+          // Silently upgrade store in background if legacy data existed
+          if (hasLegacyData) {
+            this.batchSaveRiskPoints(sanitized).catch(() => {});
+          }
+
+          resolve(sanitized);
         }
       };
 

@@ -195,8 +195,8 @@ export default function App() {
 
       // Sound & tactile alert
       if (settings.soundAlertEnabled && !isAudioMuted) {
-        const hasCritical = newAlerts.some((a) => a.point.severity === 'critical');
-        if (hasCritical) {
+        const hasHigh = newAlerts.some((a) => a.point.severity === 'high');
+        if (hasHigh) {
           audioAlertService.playCriticalAlert();
         } else {
           audioAlertService.playCautionAlert();

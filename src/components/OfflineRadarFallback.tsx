@@ -113,8 +113,8 @@ export const OfflineRadarFallback: React.FC<OfflineRadarProps> = ({
             const x = radiusPx * Math.cos(rad);
             const y = radiusPx * Math.sin(rad);
 
-            const isCritical = p.severity === 'critical';
             const isHigh = p.severity === 'high';
+            const isMedium = p.severity === 'medium';
 
             return (
               <button
@@ -127,17 +127,17 @@ export const OfflineRadarFallback: React.FC<OfflineRadarProps> = ({
                   transform: `translate(${x}px, ${y}px)`,
                 }}
                 className={`absolute z-20 w-5 h-5 rounded-full flex items-center justify-center transition-transform hover:scale-125 ${
-                  isCritical
+                  isHigh
                     ? 'bg-red-500 shadow-md shadow-red-500/80 animate-ping'
-                    : isHigh
+                    : isMedium
                     ? 'bg-amber-500 shadow-md shadow-amber-500/70'
-                    : 'bg-yellow-400'
+                    : 'bg-blue-400'
                 }`}
                 title={`${p.title} (${p.distance}m)`}
               >
                 <div
                   className={`w-3 h-3 rounded-full border border-white ${
-                    isCritical ? 'bg-red-600' : isHigh ? 'bg-orange-600' : 'bg-yellow-500'
+                    isHigh ? 'bg-red-600' : isMedium ? 'bg-orange-600' : 'bg-blue-500'
                   }`}
                 />
               </button>
@@ -186,11 +186,11 @@ export const OfflineRadarFallback: React.FC<OfflineRadarProps> = ({
                 <div className="flex items-center gap-1.5">
                   <span
                     className={`w-2 h-2 rounded-full ${
-                      point.severity === 'critical'
+                      point.severity === 'high'
                         ? 'bg-red-500'
-                        : point.severity === 'high'
-                        ? 'bg-orange-500'
-                        : 'bg-yellow-400'
+                        : point.severity === 'medium'
+                        ? 'bg-amber-400'
+                        : 'bg-blue-400'
                     }`}
                   />
                   <span className="font-semibold text-xs md:text-sm line-clamp-1">{point.title}</span>

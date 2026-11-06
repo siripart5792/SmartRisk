@@ -2,14 +2,16 @@
  * Data contracts and type definitions for GeoRisk Field Ops
  */
 
-export type RiskSeverity = 'critical' | 'high' | 'medium' | 'low';
+export type RiskSeverity = 'high' | 'medium' | 'low';
 
 export type RiskCategory =
+  | 'sharp_curve'       // โค้งอันตราย
+  | 'steep_slope'       // ทางลาดชัน
+  | 'no_lighting'       // ไม่มีไฟส่องสว่าง
+  | 'accident_prone'    // มีอุบัติเหตุบ่อยครั้ง
   | 'electrical'        // เสา/สายไฟฟ้าชำรุด
-  | 'landslide'         // ดินสไลด์/หินร่วง
   | 'flood'             // น้ำท่วมทาง/ทางขาด
   | 'road_damage'       // ถนนชำรุด/หลุมลึก
-  | 'tree_fall'         // ต้นไม้โค่นขวาง
   | 'bridge_damage'     // สะพานชำรุด
   | 'signal_deadzone'   // จุดอับสัญญาณ
   | 'other';            // อื่นๆ

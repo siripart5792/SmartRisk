@@ -2,13 +2,16 @@ import React from 'react';
 import {
   AlertTriangle,
   Zap,
-  Mountain,
   Waves,
   Cone,
   Volume2,
   VolumeX,
   Check,
   Navigation,
+  CornerUpRight,
+  TrendingDown,
+  LightbulbOff,
+  Car,
 } from 'lucide-react';
 import { GeofenceAlert, RiskCategory } from '../types';
 
@@ -22,10 +25,16 @@ interface GeofenceAlertBannerProps {
 
 const getCategoryIcon = (category: RiskCategory) => {
   switch (category) {
+    case 'sharp_curve':
+      return CornerUpRight;
+    case 'steep_slope':
+      return TrendingDown;
+    case 'no_lighting':
+      return LightbulbOff;
+    case 'accident_prone':
+      return Car;
     case 'electrical':
       return Zap;
-    case 'landslide':
-      return Mountain;
     case 'flood':
       return Waves;
     case 'road_damage':
@@ -48,13 +57,13 @@ export const GeofenceAlertBanner: React.FC<GeofenceAlertBannerProps> = ({
 
   const topAlert = activeAlerts[0];
   const IconComp = getCategoryIcon(topAlert.point.category);
-  const isCritical = topAlert.point.severity === 'critical';
+  const isHigh = topAlert.point.severity === 'high' || (topAlert.point.severity as string) === 'critical';
 
   return (
     <div className="absolute top-14 left-3 right-3 z-30 max-w-lg mx-auto animate-in slide-in-from-top duration-300">
       <div
         className={`p-3.5 rounded-2xl border shadow-2xl backdrop-blur-md flex items-center justify-between gap-3 ${
-          isCritical
+          isHigh
             ? 'bg-red-950/95 border-red-500 text-white shadow-red-950/80 animate-pulse'
             : 'bg-orange-950/95 border-orange-500 text-white shadow-orange-950/80'
         }`}
@@ -62,7 +71,7 @@ export const GeofenceAlertBanner: React.FC<GeofenceAlertBannerProps> = ({
         <div className="flex items-center gap-2.5 overflow-hidden">
           <div
             className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
-              isCritical ? 'bg-red-600 text-white' : 'bg-orange-600 text-white'
+              isHigh ? 'bg-red-600 text-white' : 'bg-orange-600 text-white'
             }`}
           >
             <IconComp className="w-6 h-6 animate-bounce" />

@@ -35,6 +35,8 @@ import {
   updatePointStatusInSheet,
   syncPointsViaAppsScriptWebhook,
   fetchRiskPointsFromAppsScript,
+  fetchRiskPointsFromPublicSheet,
+  extractSheetId,
 } from './services/googleSheets';
 
 import { Header } from './components/Header';
@@ -56,6 +58,8 @@ export default function App() {
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
   const [userProfile, setUserProfile] = useState<UserProfile>(storageService.getUserProfile());
   const [syncLogs, setSyncLogs] = useState<SyncLog[]>([]);
+  const [syncNotice, setSyncNotice] = useState<string | null>(null);
+  const [oldVersionWarning, setOldVersionWarning] = useState<boolean>(false);
 
   // Connectivity with Active Probe
   const [isBrowserOnline, setIsBrowserOnline] = useState<boolean>(
@@ -119,8 +123,8 @@ export default function App() {
     return () => unsubscribe();
   }, [loadStoredData]);
 
-  // --- AUTO PULL FROM GOOGLE SHEETS ON EVERY ENTRY ---
-  const autoPullFromGoogleSheet = useCallback(async () => {
+  // --- AUTO PULL FROM GOOGLE SHEETS & CENTRAL SYNC ---
+  const autoPullFromGoogleSheet = useCallback(async (showToast: boolean = false) => {
     const currentSettings = storageService.getSettings();
     const webhookUrl = currentSettings.appsScriptUrl;
     const sheetId = currentSettings.googleSheetId;
@@ -128,41 +132,95 @@ export default function App() {
     if (!webhookUrl && !sheetId) return;
 
     try {
-      // 1. Try pulling from Apps Script Webhook
-      if (webhookUrl) {
-        const appsScriptPoints = await fetchRiskPointsFromAppsScript(webhookUrl);
-        if (appsScriptPoints && appsScriptPoints.length > 0) {
-          await storageService.batchSaveRiskPoints(appsScriptPoints);
-          const updated = await storageService.getAllRiskPoints();
+      // 1. Try pulling directly from Google Sheet ID / Link if available (Fastest, zero deployment dependencies)
+      if (sheetId) {
+        const publicResult = await fetchRiskPointsFromPublicSheet(sheetId);
+        if (publicResult.success && publicResult.points.length > 0) {
+          const updated = await storageService.replaceWithCentralPoints(publicResult.points);
           setPoints(updated);
           storageService.saveSettings({ lastSuccessfulSync: new Date().toISOString() });
           setSyncStatus('synced');
+          setOldVersionWarning(false);
+          if (showToast) {
+            setSyncNotice(`ซิงก์ดึงข้อมูลจาก Google Sheets สำเร็จ (${publicResult.points.length} จุด)`);
+            setTimeout(() => setSyncNotice(null), 3500);
+          }
           return;
         }
       }
 
-      // 2. Try pulling from Google Sheets API if Sheet ID and token are present
+      // 2. Try pulling from Apps Script Webhook
+      if (webhookUrl) {
+        const appsScriptRes = await fetchRiskPointsFromAppsScript(webhookUrl);
+        if (appsScriptRes.success && appsScriptRes.points.length > 0) {
+          const updated = await storageService.replaceWithCentralPoints(appsScriptRes.points);
+          setPoints(updated);
+          storageService.saveSettings({ lastSuccessfulSync: new Date().toISOString() });
+          setSyncStatus('synced');
+          setOldVersionWarning(false);
+          if (showToast) {
+            setSyncNotice(`ซิงก์ดึงข้อมูลจาก Apps Script สำเร็จ (${appsScriptRes.points.length} จุด)`);
+            setTimeout(() => setSyncNotice(null), 3500);
+          }
+          return;
+        } else if (appsScriptRes.isOldVersion) {
+          setOldVersionWarning(true);
+        }
+      }
+
+      // 3. Try pulling from Google Sheets API if OAuth token is available
       const token = await getAccessToken();
       if (token && sheetId) {
         const sheetPoints = await fetchRiskPointsFromSheet(token, sheetId);
         if (sheetPoints && sheetPoints.length > 0) {
-          await storageService.batchSaveRiskPoints(sheetPoints);
-          const updated = await storageService.getAllRiskPoints();
+          const updated = await storageService.replaceWithCentralPoints(sheetPoints);
           setPoints(updated);
           storageService.saveSettings({ lastSuccessfulSync: new Date().toISOString() });
           setSyncStatus('synced');
+          setOldVersionWarning(false);
+          if (showToast) {
+            setSyncNotice(`ซิงก์ดึงข้อมูลจาก Google Sheets สำเร็จ (${sheetPoints.length} จุด)`);
+            setTimeout(() => setSyncNotice(null), 3500);
+          }
+          return;
         }
       }
+
+      if (showToast) {
+        setSyncNotice('ไม่พบข้อมูลจุดเสี่ยงใน Google Sheets');
+        setTimeout(() => setSyncNotice(null), 3000);
+      }
     } catch (e) {
-      console.warn('Auto pull from Google Sheets on start failed:', e);
+      console.warn('Auto pull from Google Sheets failed:', e);
+      if (showToast) {
+        setSyncNotice('เกิดข้อผิดพลาดในการดึงข้อมูลจาก Google Sheets');
+        setTimeout(() => setSyncNotice(null), 3000);
+      }
     }
   }, []);
 
-  // Run auto-pull every time the user enters/opens the app
+  // Run auto-pull on start and periodically every 25 seconds when online so all devices stay synchronized
   useEffect(() => {
-    if (effectiveOnline) {
-      autoPullFromGoogleSheet();
-    }
+    if (!effectiveOnline) return;
+
+    // Pull immediately upon becoming online
+    autoPullFromGoogleSheet(false);
+
+    // Pull periodically every 25 seconds in background
+    const intervalId = setInterval(() => {
+      autoPullFromGoogleSheet(false);
+    }, 25000);
+
+    // Pull when user refocuses the app window/tab
+    const handleFocus = () => {
+      autoPullFromGoogleSheet(false);
+    };
+    window.addEventListener('focus', handleFocus);
+
+    return () => {
+      clearInterval(intervalId);
+      window.removeEventListener('focus', handleFocus);
+    };
   }, [effectiveOnline, autoPullFromGoogleSheet]);
 
   // --- GOOGLE WORKSPACE AUTH LISTENER ---
@@ -437,18 +495,11 @@ export default function App() {
   };
 
   const handlePrecacheFromSheet = async () => {
-    const token = await getAccessToken();
-    const sheetId = settings.googleSheetId;
-    if (!token || !sheetId) return;
-
     setIsSyncing(true);
     try {
-      const fetchedPoints = await fetchRiskPointsFromSheet(token, sheetId);
-      if (fetchedPoints.length > 0) {
-        await storageService.batchSaveRiskPoints(fetchedPoints);
-        audioAlertService.playSuccessChime();
-        confetti({ particleCount: 40, spread: 50 });
-      }
+      await autoPullFromGoogleSheet(true);
+      audioAlertService.playSuccessChime();
+      confetti({ particleCount: 40, spread: 50 });
     } finally {
       setIsSyncing(false);
     }
@@ -491,6 +542,32 @@ export default function App() {
         activeView={activeView}
         onViewChange={setActiveView}
       />
+
+      {/* Sync Notice Toast */}
+      {syncNotice && (
+        <div className="fixed top-14 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-full bg-slate-900/95 border border-emerald-500 text-emerald-300 text-xs font-semibold shadow-2xl flex items-center gap-2 animate-in fade-in slide-in-from-top-2">
+          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+          <span>{syncNotice}</span>
+        </div>
+      )}
+
+      {/* Old Apps Script Version Notice */}
+      {oldVersionWarning && !syncNotice && (
+        <div
+          onClick={() => setIsSheetsModalOpen(true)}
+          className="bg-amber-950/90 border-b border-amber-800/80 px-3 py-1.5 text-xs text-amber-200 flex items-center justify-between cursor-pointer hover:bg-amber-900 transition-colors z-40"
+        >
+          <div className="flex items-center gap-2 truncate">
+            <span className="px-1.5 py-0.5 rounded bg-amber-800 text-[10px] font-bold text-amber-100 uppercase">
+              Apps Script
+            </span>
+            <span className="truncate">
+              ตรวจพบ Webhook แต่ต้องกดเลือก "เวอร์ชันใหม่" (New version) ใน Apps Script เพื่อให้ทุกเครื่องดึงข้อมูลได้
+            </span>
+          </div>
+          <span className="text-[11px] underline font-semibold shrink-0 ml-2">ดูวิธี &gt;</span>
+        </div>
+      )}
 
       {/* Geofence Active Alert Banner */}
       <GeofenceAlertBanner

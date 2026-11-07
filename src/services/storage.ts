@@ -352,6 +352,65 @@ class StorageService {
     });
   }
 
+  /**
+   * Synchronizes central points from Google Sheets:
+   * - Sets central points as authoritative
+   * - Automatically purges hardcoded SEED mock points (RISK-TH-) if real central data exists
+   * - Safely retains un-synced points that were created locally on this device
+   */
+  public async replaceWithCentralPoints(centralPoints: RiskPoint[]): Promise<RiskPoint[]> {
+    if (!centralPoints || centralPoints.length === 0) {
+      return this.getAllRiskPoints();
+    }
+
+    const db = await this.initDatabase();
+    const pending = await this.getPendingSyncQueue();
+    const pendingMap = new Map(pending.map((p) => [p.id, p]));
+
+    const mergedMap = new Map<string, RiskPoint>();
+
+    // 1. Add all authoritative points from Google Sheets
+    centralPoints.forEach((p) => {
+      const sanitized = this.sanitizePoint(p);
+      if (pendingMap.has(p.id)) {
+        mergedMap.set(p.id, pendingMap.get(p.id)!);
+      } else {
+        mergedMap.set(p.id, { ...sanitized, syncStatus: 'synced' });
+      }
+    });
+
+    // 2. Add local pending points that haven't been pushed to Google Sheets yet
+    pending.forEach((p) => {
+      if (!mergedMap.has(p.id)) {
+        mergedMap.set(p.id, p);
+      }
+    });
+
+    const finalPoints = Array.from(mergedMap.values());
+
+    if (!db) {
+      this.saveToLocalStorage(STORE_POINTS, finalPoints);
+      this.notify();
+      return finalPoints;
+    }
+
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(STORE_POINTS, 'readwrite');
+      const store = tx.objectStore(STORE_POINTS);
+      const clearReq = store.clear();
+      clearReq.onsuccess = () => {
+        finalPoints.forEach((p) => store.put(p));
+      };
+      tx.oncomplete = () => {
+        this.notify();
+        resolve();
+      };
+      tx.onerror = () => reject(tx.error);
+    });
+
+    return finalPoints;
+  }
+
   public async deleteRiskPoint(id: string): Promise<void> {
     const db = await this.initDatabase();
     if (!db) {

@@ -118,7 +118,12 @@ function doPost(e) {
       })).setMimeType(ContentService.MimeType.JSON);
     }
 
-    // 2. จัดการรับข้อมูลจุดเสี่ยงแบบ Batch Sync
+    // 2. รองรับการดึงข้อมูลผ่าน POST
+    if (payload.action === "get_points" || payload.action === "fetch_points") {
+      return getPointsOutput(ss);
+    }
+
+    // 3. จัดการรับข้อมูลจุดเสี่ยงแบบ Batch Sync
     var points = payload.points || [];
     var sheet = ss.getSheetByName("Risk_Points_Log") || ss.getActiveSheet();
 
@@ -175,7 +180,7 @@ function doGet(e) {
   var action = (e && e.parameter && e.parameter.action) ? e.parameter.action : "";
   var ss = SpreadsheetApp.getActiveSpreadsheet();
 
-  // 1. ดึงรหัส PIN ของ Admin จากแท็บ Admin_Config ใน Google Sheets
+  // 1. ดึงรหัส PIN ของ Admin
   if (action === "get_admin_pin") {
     var configSheet = ss.getSheetByName("Admin_Config");
     var pin = "9999";
@@ -188,51 +193,55 @@ function doGet(e) {
     })).setMimeType(ContentService.MimeType.JSON);
   }
 
-  // 2. ดึงข้อมูลจุดเสี่ยงทั้งหมดจาก Google Sheets มาแสดงผลในแอปอัตโนมัติ
+  // 2. ดึงข้อมูลจุดเสี่ยงทั้งหมดจาก Google Sheets มาแสดงผลในแผนที่
   if (action === "get_points" || action === "fetch_points") {
-    var sheet = ss.getSheetByName("Risk_Points_Log") || ss.getActiveSheet();
-    var lastRow = sheet.getLastRow();
-    if (lastRow <= 1) {
-      return ContentService.createTextOutput(JSON.stringify({
-        status: "success",
-        points: []
-      })).setMimeType(ContentService.MimeType.JSON);
-    }
-    var rows = sheet.getRange(2, 1, lastRow - 1, 15).getValues();
-    var points = [];
-    for (var i = 0; i < rows.length; i++) {
-      var r = rows[i];
-      if (r[0] || r[2]) {
-        points.push({
-          id: String(r[0] || ("ROW-" + (i + 2))),
-          createdAt: r[1] ? new Date(r[1]).toISOString() : new Date().toISOString(),
-          title: String(r[2] || "จุดเสี่ยง"),
-          category: String(r[3] || "other"),
-          severity: String(r[4] || "high"),
-          lat: Number(r[5]) || 0,
-          lng: Number(r[6]) || 0,
-          accuracy: Number(r[7]) || 5,
-          status: String(r[8] || "pending_review"),
-          reporterName: String(r[9] || "เจ้าหน้าที่"),
-          reporterRole: String(r[10] || "staff"),
-          reporterUnit: String(r[11] || "-"),
-          description: String(r[12] || ""),
-          notes: String(r[13] || ""),
-          syncStatus: "synced",
-          lastSyncedAt: new Date().toISOString()
-        });
-      }
-    }
-    return ContentService.createTextOutput(JSON.stringify({
-      status: "success",
-      points: points
-    })).setMimeType(ContentService.MimeType.JSON);
+    return getPointsOutput(ss);
   }
 
   return ContentService.createTextOutput(JSON.stringify({
     service: "GeoRisk Field Ops Webhook",
     status: "active",
     time: new Date().toISOString()
+  })).setMimeType(ContentService.MimeType.JSON);
+}
+
+function getPointsOutput(ss) {
+  var sheet = ss.getSheetByName("Risk_Points_Log") || ss.getActiveSheet();
+  var lastRow = sheet.getLastRow();
+  if (lastRow <= 1) {
+    return ContentService.createTextOutput(JSON.stringify({
+      status: "success",
+      points: []
+    })).setMimeType(ContentService.MimeType.JSON);
+  }
+  var rows = sheet.getRange(2, 1, lastRow - 1, 15).getValues();
+  var points = [];
+  for (var i = 0; i < rows.length; i++) {
+    var r = rows[i];
+    if (r[0] || r[2]) {
+      points.push({
+        id: String(r[0] || ("ROW-" + (i + 2))),
+        createdAt: r[1] ? new Date(r[1]).toISOString() : new Date().toISOString(),
+        title: String(r[2] || "จุดเสี่ยง"),
+        category: String(r[3] || "other"),
+        severity: String(r[4] || "high"),
+        lat: Number(r[5]) || 0,
+        lng: Number(r[6]) || 0,
+        accuracy: Number(r[7]) || 5,
+        status: String(r[8] || "pending_review"),
+        reporterName: String(r[9] || "เจ้าหน้าที่"),
+        reporterRole: String(r[10] || "staff"),
+        reporterUnit: String(r[11] || "-"),
+        description: String(r[12] || ""),
+        notes: String(r[13] || ""),
+        syncStatus: "synced",
+        lastSyncedAt: new Date().toISOString()
+      });
+    }
+  }
+  return ContentService.createTextOutput(JSON.stringify({
+    status: "success",
+    points: points
   })).setMimeType(ContentService.MimeType.JSON);
 }`;
 
@@ -247,7 +256,7 @@ function doGet(e) {
             </div>
             <div>
               <h2 className="font-bold text-sm sm:text-base text-white">การเชื่อมต่อ Google Sheets</h2>
-              <p className="text-[11px] text-slate-400">ระบบซิงก์ข้อมูลจุดเสี่ยงแบบ Batch Sync</p>
+              <p className="text-[11px] text-slate-400">ระบบซิงก์ข้อมูลจุดเสี่ยงระหว่างอุปกรณ์ภาคสนาม</p>
             </div>
           </div>
           <button
@@ -279,7 +288,7 @@ function doGet(e) {
             }`}
           >
             <Code className="w-4 h-4" />
-            <span>ซอร์สโค้ด Apps Script Webhook</span>
+            <span>ซอร์สโค้ดและวิธีอัปเดต Apps Script</span>
           </button>
         </div>
 
@@ -294,8 +303,32 @@ function doGet(e) {
 
           {activeTab === 'sync' ? (
             <>
+              {/* INSTANT PULL ACTION BUTTON */}
+              <div className="p-3.5 rounded-xl bg-gradient-to-br from-emerald-950/70 via-slate-900 to-slate-950 border border-emerald-700/60 shadow-lg space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-emerald-300 flex items-center gap-1.5">
+                    <DownloadCloud className="w-4 h-4 text-emerald-400" />
+                    ดึงข้อมูลจุดเสี่ยงจาก Google Sheets แสดงบนแผนที่
+                  </span>
+                  <span className="text-[10px] text-slate-400">ซิงก์ทุกเครื่องตรงกัน</span>
+                </div>
+                <p className="text-[11px] text-slate-300 leading-relaxed">
+                  กดปุ่มนี้เพื่อดึงจุดเสี่ยงทั้งหมดจากฐานข้อมูลกลาง Google Sheets มาแสดงผลบนแผนที่และรายการทันที
+                </p>
+                <button
+                  onClick={onPrecacheFromSheet}
+                  disabled={isSyncing}
+                  className="w-full py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center justify-center gap-2 transition-all active:scale-[0.98] shadow-md shadow-emerald-950 disabled:opacity-50"
+                >
+                  <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
+                  <span>
+                    {isSyncing ? 'กำลังดึงข้อมูลจาก Google Sheets...' : 'ดึงข้อมูลจุดเสี่ยงจาก Google Sheets ทันที'}
+                  </span>
+                </button>
+              </div>
+
               {/* PRIMARY SYNC ENDPOINT: Google Apps Script Webhook */}
-              <div className="p-3.5 rounded-xl bg-slate-950 border border-emerald-800/60 shadow-lg space-y-3">
+              <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1.5">
                     <Globe className="w-4 h-4 text-emerald-400" />
@@ -305,12 +338,12 @@ function doGet(e) {
                   </div>
                   <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-950 text-emerald-400 border border-emerald-800 flex items-center gap-1">
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                    พร้อมใช้งาน (Active)
+                    พร้อมใช้งาน
                   </span>
                 </div>
 
                 <p className="text-[11px] text-slate-400 leading-relaxed">
-                  จุดเชื่อมต่อ Webhook สำหรับรับข้อมูลจุดเสี่ยงแบบ Batch Sync จากอุปกรณ์ภาคสนามโดยตรง ส่งตรงเข้า Google Sheets อัตโนมัติ:
+                  จุดเชื่อมต่อ Webhook สำหรับรับ-ส่งข้อมูลจุดเสี่ยงแบบสองทางกับ Google Sheets โดยตรง:
                 </p>
 
                 <div className="space-y-1.5">
@@ -341,39 +374,46 @@ function doGet(e) {
                     </button>
                   </div>
                 </div>
+              </div>
 
-                <div className="flex items-center justify-between text-[11px] text-slate-400 border-t border-slate-800/80 pt-2">
-                  <span>โหมดการทำงาน:</span>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => onSaveSyncMethod('apps_script')}
-                      className={`px-2 py-0.5 rounded text-[10px] font-semibold transition-colors ${
-                        syncMethod === 'apps_script'
-                          ? 'bg-emerald-600 text-white'
-                          : 'bg-slate-800 text-slate-400 hover:text-white'
-                      }`}
-                    >
-                      ✓ ผ่าน Webhook (ค่าหลัก)
-                    </button>
-                    <button
-                      onClick={() => onSaveSyncMethod('google_oauth')}
-                      className={`px-2 py-0.5 rounded text-[10px] font-semibold transition-colors ${
-                        syncMethod === 'google_oauth'
-                          ? 'bg-blue-600 text-white'
-                          : 'bg-slate-800 text-slate-400 hover:text-white'
-                      }`}
-                    >
-                      ผ่าน Google OAuth
-                    </button>
+              {/* Direct Google Sheet Link / ID (Universal cross-device sync) */}
+              <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <FileSpreadsheet className="w-4 h-4 text-blue-400" />
+                    <span className="text-xs font-bold text-slate-200">
+                      ลิงก์หรือรหัส Google Sheet (วางลิงก์ได้ทันที)
+                    </span>
                   </div>
+                  <span className="text-[10px] text-slate-400">ดึงข้ามเครื่องได้ทันที</span>
+                </div>
+
+                <p className="text-[11px] text-slate-400 leading-relaxed">
+                  สามารถคัดลอก URL ของ Google Sheet (เช่น https://docs.google.com/spreadsheets/d/...) หรือ Sheet ID มาวางที่นี่เพื่อให้ทุกเครื่องดึงข้อมูลได้ทันที:
+                </p>
+
+                <div className="flex gap-1.5">
+                  <input
+                    type="text"
+                    value={inputSheetId}
+                    onChange={(e) => setInputSheetId(e.target.value)}
+                    placeholder="วางลิงก์ Google Sheet หรือใส่ Sheet ID..."
+                    className="flex-1 px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-xs font-mono text-blue-300 placeholder-slate-500 focus:outline-none focus:border-blue-500 select-all"
+                  />
+                  <button
+                    onClick={handleSheetIdSave}
+                    className="px-3 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shrink-0"
+                  >
+                    บันทึก
+                  </button>
                 </div>
               </div>
 
-              {/* Batch Sync Trigger Card */}
+              {/* Batch Upload Card */}
               <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-semibold text-slate-300">
-                    การส่งข้อมูลขึ้น Google Sheets (Batch Sync)
+                    ส่งข้อมูลที่บันทึกไว้ขึ้น Google Sheets
                   </span>
                   <span className="text-xs font-bold text-amber-400 font-mono">
                     ค้างส่ง: {pendingCount} จุด
@@ -383,15 +423,15 @@ function doGet(e) {
                 <button
                   onClick={onBatchSyncNow}
                   disabled={isSyncing || pendingCount === 0}
-                  className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 hover:from-emerald-500 hover:to-teal-500 text-white shadow-xl flex items-center justify-center gap-2 font-bold text-xs md:text-sm active:scale-[0.98] transition-transform disabled:opacity-50"
+                  className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 hover:from-emerald-500 hover:to-teal-500 text-white shadow-lg flex items-center justify-center gap-2 font-bold text-xs active:scale-[0.98] transition-transform disabled:opacity-50"
                 >
-                  <UploadCloud className={`w-5 h-5 ${isSyncing ? 'animate-bounce' : ''}`} />
+                  <UploadCloud className={`w-4 h-4 ${isSyncing ? 'animate-bounce' : ''}`} />
                   <span>
                     {isSyncing
                       ? 'กำลังส่งข้อมูลขึ้น Google Sheets...'
                       : pendingCount > 0
                       ? `ส่งข้อมูลค้างซิงก์ ${pendingCount} จุด ขึ้น Google Sheets ทันที`
-                      : 'ข้อมูลทั้งหมดถูกซิงก์เรียบร้อยแล้ว'}
+                      : 'ข้อมูลจุดเสี่ยงในเครื่องถูกซิงก์ครบแล้ว'}
                   </span>
                 </button>
 
@@ -401,66 +441,27 @@ function doGet(e) {
                   </p>
                 )}
               </div>
-
-              {/* Direct OAuth / Spreadsheet ID Setup (Alternative) */}
-              <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
-                <div className="flex items-center justify-between">
-                  <label className="text-xs font-semibold text-slate-300">
-                    การเชื่อมต่อผ่าน Google OAuth (ทางเลือก)
-                  </label>
-                  {currentUser ? (
-                    <span className="text-[11px] text-emerald-400 flex items-center gap-1 font-medium">
-                      <CheckCircle className="w-3.5 h-3.5" /> ล็อกอินแล้ว ({currentUser.email})
-                    </span>
-                  ) : (
-                    <button
-                      onClick={onSignInGoogle}
-                      className="px-2.5 py-1 rounded bg-white hover:bg-slate-100 text-slate-900 text-xs font-medium"
-                    >
-                      Sign in with Google
-                    </button>
-                  )}
-                </div>
-
-                <div className="flex gap-1.5">
-                  <input
-                    type="text"
-                    value={inputSheetId}
-                    onChange={(e) => setInputSheetId(e.target.value)}
-                    placeholder="ใส่ Google Sheet ID สำหรับการดึงข้อมูลกลับมาแคช..."
-                    className="flex-1 px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-700 text-xs font-mono text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
-                  />
-                  <button
-                    onClick={handleSheetIdSave}
-                    className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium border border-slate-700"
-                  >
-                    บันทึก
-                  </button>
-                </div>
-
-                {sheetId && (
-                  <button
-                    onClick={onPrecacheFromSheet}
-                    disabled={!currentUser || isSyncing}
-                    className="w-full py-2 px-3 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-700 text-xs font-semibold flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
-                  >
-                    <DownloadCloud className="w-4 h-4 text-blue-400" />
-                    <span>ดึงข้อมูลจาก Google Sheet มาเก็บในเครื่อง (Pre-cache สำหรับออฟไลน์)</span>
-                  </button>
-                )}
-              </div>
             </>
           ) : (
             /* Google Apps Script Documentation Tab */
-            <div className="space-y-3 text-xs text-slate-300">
-              <div className="p-3 rounded-xl bg-emerald-950/40 border border-emerald-900/60 space-y-1">
-                <h4 className="font-bold text-emerald-300 flex items-center gap-1.5">
-                  <ShieldCheck className="w-4 h-4" />
-                  <span>Webhook ใช้งานได้ทันที</span>
-                </h4>
-                <p className="text-[11px] text-emerald-200/90 leading-relaxed">
-                  URL Webhook ของท่านได้รับการบันทึกลงในระบบเรียบร้อยแล้ว หากต้องการตรวจสอบหรือปรับแต่งสคริปต์ในฝั่ง Google Sheet สามารถดูโค้ดต้นฉบับได้ที่ด้านล่าง:
+            <div className="space-y-3.5 text-xs text-slate-300">
+              {/* IMPORTANT DEPLOYMENT INSTRUCTION BANNER */}
+              <div className="p-3.5 rounded-xl bg-amber-950/70 border border-amber-600/70 space-y-2">
+                <div className="flex items-center gap-2 text-amber-300 font-bold text-xs sm:text-sm">
+                  <AlertCircle className="w-5 h-5 text-amber-400 shrink-0" />
+                  <span>ขั้นตอนสำคัญมากเพื่อให้ดึงข้อมูลข้ามเครื่องได้:</span>
+                </div>
+                <p className="text-[11px] text-amber-200/90 leading-relaxed">
+                  หากอุปกรณ์อื่นยังไม่เห็นข้อมูลจุดเสี่ยง ให้เปิด Google Sheet แล้วทำตามขั้นตอนต่อไปนี้ (ใช้เวลาไม่เกิน 1 นาที):
                 </p>
+                <ol className="list-decimal list-inside space-y-1 text-[11px] text-amber-100/95 font-medium pl-1">
+                  <li>เปิด Google Sheet แล้วไปที่เมนู <strong>ส่วนขยาย (Extensions) &gt; Apps Script</strong></li>
+                  <li>คัดลอกโค้ดด้านล่างนี้ วางทับโค้ดเดิมทั้งหมด แล้วกด <strong>บันทึก (Ctrl+S)</strong></li>
+                  <li>กดปุ่มสีน้ำเงิน <strong>"การทำให้ใช้งานได้" (Deploy) &gt; "จัดการการทำให้ใช้งานได้" (Manage deployments)</strong></li>
+                  <li>คลิก <strong>ไอคอนรูปดินสอ ✏️ (แก้ไข)</strong> ทางขวามือ</li>
+                  <li>ตรงช่อง <strong>"เวอร์ชัน" (Version)</strong> ให้คลิกเปลี่ยนเป็น <strong>"เวอร์ชันใหม่" (New version)</strong> *(สำคัญที่สุด)*</li>
+                  <li>กดปุ่ม <strong>"ทำให้ใช้งานได้" (Deploy)</strong> แล้วกดเสร็จสิ้น</li>
+                </ol>
               </div>
 
               {/* Code Snippet */}
@@ -476,7 +477,7 @@ function doGet(e) {
                   {copiedScript ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
                   <span>{copiedScript ? 'คัดลอกแล้ว' : 'คัดลอกโค้ด'}</span>
                 </button>
-                <pre className="p-3 rounded-xl bg-slate-950 border border-slate-800 font-mono text-[10px] text-slate-300 overflow-x-auto max-h-[260px]">
+                <pre className="p-3 rounded-xl bg-slate-950 border border-slate-800 font-mono text-[10px] text-slate-300 overflow-x-auto max-h-[300px]">
                   {appsScriptCode}
                 </pre>
               </div>

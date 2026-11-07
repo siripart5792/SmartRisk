@@ -376,75 +376,296 @@ export async function syncPointsViaAppsScriptWebhook(
 }
 
 /**
+ * Extracts clean Google Sheet ID from any URL or raw string
+ */
+export function extractSheetId(input: string): string {
+  if (!input) return '';
+  const trimmed = input.trim();
+  const match = trimmed.match(/\/d\/([a-zA-Z0-9-_]+)/);
+  if (match) return match[1];
+  return trimmed;
+}
+
+/**
+ * Normalizes raw row data from Google Sheets into a strongly-typed RiskPoint
+ */
+export function parseSheetRowToRiskPoint(row: any[], rowIndex: number): RiskPoint | null {
+  if (!row || row.length < 7) return null;
+
+  const [
+    id,
+    timestampStr,
+    title,
+    catName,
+    sevName,
+    latVal,
+    lngVal,
+    accVal,
+    statusStr,
+    reporterName,
+    reporterRole,
+    reporterUnit,
+    description,
+    notes,
+  ] = row;
+
+  const lat = typeof latVal === 'number' ? latVal : parseFloat(String(latVal).replace(/[^\d.-]/g, ''));
+  const lng = typeof lngVal === 'number' ? lngVal : parseFloat(String(lngVal).replace(/[^\d.-]/g, ''));
+
+  if (isNaN(lat) || isNaN(lng) || lat === 0 || lng === 0) return null;
+
+  // Map category back
+  let category: RiskCategory = 'other';
+  const cStr = String(catName || '').trim();
+  for (const [key, val] of Object.entries(CATEGORY_NAMES)) {
+    if (val === cStr || key === cStr) {
+      category = key as RiskCategory;
+      break;
+    }
+  }
+
+  // Map severity back
+  let severity: RiskSeverity = 'medium';
+  const sStr = String(sevName || '').trim().toLowerCase();
+  if (sStr === 'high' || sStr === 'สูง' || sStr === 'วิกฤต' || sStr === 'critical' || sStr.includes('อันตราย')) {
+    severity = 'high';
+  } else if (sStr === 'low' || sStr === 'ต่ำ' || sStr.includes('เฝ้าระวัง')) {
+    severity = 'low';
+  } else {
+    severity = 'medium';
+  }
+
+  // Map status back
+  let status: RiskStatus = 'approved';
+  const stStr = String(statusStr || '').trim();
+  for (const [key, val] of Object.entries(STATUS_NAMES)) {
+    if (val === stStr || key === stStr) {
+      status = key as RiskStatus;
+      break;
+    }
+  }
+
+  return {
+    id: String(id || `ROW-${rowIndex}`),
+    title: String(title || 'จุดเสี่ยงจาก Google Sheets'),
+    category,
+    severity,
+    status,
+    lat,
+    lng,
+    accuracy: Number(accVal) || 5,
+    reporterName: String(reporterName || 'ระบบส่วนกลาง'),
+    reporterRole: (reporterRole as 'staff' | 'admin') || 'staff',
+    reporterUnit: String(reporterUnit || '-'),
+    description: String(description || ''),
+    notes: String(notes || ''),
+    createdAt: timestampStr ? new Date(timestampStr).toISOString() : new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    syncStatus: 'synced',
+    lastSyncedAt: new Date().toISOString(),
+    sheetRowIndex: rowIndex,
+  };
+}
+
+/**
  * Fetches existing risk points from Google Sheets via Apps Script Webhook (GET request)
- * Allows automatic retrieval every time the user enters the application.
+ * Detects if the Apps Script deployment needs a new version published.
  */
 export async function fetchRiskPointsFromAppsScript(
   appsScriptUrl: string
-): Promise<RiskPoint[]> {
-  if (!appsScriptUrl || !appsScriptUrl.trim()) return [];
+): Promise<{ success: boolean; points: RiskPoint[]; message: string; isOldVersion?: boolean }> {
+  if (!appsScriptUrl || !appsScriptUrl.trim()) {
+    return { success: false, points: [], message: 'ไม่มี URL ของ Apps Script' };
+  }
 
   try {
     const url = appsScriptUrl.includes('?')
-      ? `${appsScriptUrl}&action=get_points`
-      : `${appsScriptUrl}?action=get_points`;
+      ? `${appsScriptUrl}&action=get_points&_t=${Date.now()}`
+      : `${appsScriptUrl}?action=get_points&_t=${Date.now()}`;
 
     const response = await fetch(url, {
       method: 'GET',
     });
 
-    if (!response.ok) return [];
+    if (!response.ok) {
+      return { success: false, points: [], message: `Apps Script ตอบกลับ HTTP ${response.status}` };
+    }
 
     const text = await response.text();
-    let data: { status?: string; points?: any[] };
+    let data: any = {};
     try {
       data = JSON.parse(text);
     } catch {
-      return [];
+      return { success: false, points: [], message: 'รูปแบบการตอบกลับไม่ใช่ JSON ที่ถูกต้อง' };
     }
 
-    if (!data || data.status !== 'success' || !Array.isArray(data.points)) {
-      return [];
+    // Check if the script is still running v1 code that doesn't have the action handler
+    if (data.service === 'GeoRisk Field Ops Webhook' && !Array.isArray(data.points)) {
+      return {
+        success: false,
+        points: [],
+        isOldVersion: true,
+        message: 'พบ Webhook แต่สคริปต์ยังเป็นเวอร์ชันเดิม (กรุณากด Deploy > Manage deployments > Edit > New version)',
+      };
     }
 
-    // Parse and normalize returned points
-    const parsed: RiskPoint[] = data.points
-      .map((p: any) => {
-        let category: RiskCategory = p.category || 'other';
-        if ((category as string) === 'tree_fall') category = 'other';
-        if ((category as string) === 'landslide') category = 'road_damage';
+    if (data.status === 'success' && Array.isArray(data.points)) {
+      const parsed: RiskPoint[] = data.points
+        .map((p: any, idx: number) => {
+          let category: RiskCategory = p.category || 'other';
+          if ((category as string) === 'tree_fall') category = 'other';
+          if ((category as string) === 'landslide') category = 'road_damage';
 
-        let severity: RiskSeverity = 'medium';
-        if (p.severity === 'high' || p.severity === 'critical') severity = 'high';
-        else if (p.severity === 'low') severity = 'low';
-        else severity = 'medium';
+          let severity: RiskSeverity = 'medium';
+          if (p.severity === 'high' || p.severity === 'critical') severity = 'high';
+          else if (p.severity === 'low') severity = 'low';
+          else severity = 'medium';
 
-        return {
-          id: String(p.id || `SYNC-${Date.now()}`),
-          title: String(p.title || 'จุดเสี่ยงจาก Google Sheets'),
-          category,
-          severity,
-          status: (p.status as RiskStatus) || 'approved',
-          lat: Number(p.lat),
-          lng: Number(p.lng),
-          accuracy: Number(p.accuracy) || 5,
-          reporterName: String(p.reporterName || 'ระบบส่วนกลาง'),
-          reporterRole: (p.reporterRole as 'staff' | 'admin') || 'admin',
-          reporterUnit: String(p.reporterUnit || ''),
-          description: String(p.description || ''),
-          notes: String(p.notes || ''),
-          createdAt: p.createdAt ? new Date(p.createdAt).toISOString() : new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-          syncStatus: 'synced' as const,
-          lastSyncedAt: new Date().toISOString(),
-        };
-      })
-      .filter((p: RiskPoint) => !isNaN(p.lat) && !isNaN(p.lng) && p.lat !== 0 && p.lng !== 0);
+          return {
+            id: String(p.id || `SYNC-${Date.now()}-${idx}`),
+            title: String(p.title || 'จุดเสี่ยงจาก Google Sheets'),
+            category,
+            severity,
+            status: (p.status as RiskStatus) || 'approved',
+            lat: Number(p.lat),
+            lng: Number(p.lng),
+            accuracy: Number(p.accuracy) || 5,
+            reporterName: String(p.reporterName || 'ระบบส่วนกลาง'),
+            reporterRole: (p.reporterRole as 'staff' | 'admin') || 'admin',
+            reporterUnit: String(p.reporterUnit || ''),
+            description: String(p.description || ''),
+            notes: String(p.notes || ''),
+            createdAt: p.createdAt ? new Date(p.createdAt).toISOString() : new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            syncStatus: 'synced' as const,
+            lastSyncedAt: new Date().toISOString(),
+          };
+        })
+        .filter((p: RiskPoint) => !isNaN(p.lat) && !isNaN(p.lng) && p.lat !== 0 && p.lng !== 0);
 
-    return parsed;
-  } catch (err) {
+      return {
+        success: true,
+        points: parsed,
+        message: `ดึงข้อมูลจาก Apps Script สำเร็จ (${parsed.length} จุด)`,
+      };
+    }
+
+    return { success: false, points: [], message: data.message || 'ไม่มีข้อมูลจุดเสี่ยงใน Google Sheets' };
+  } catch (err: unknown) {
     console.warn('Auto-fetch points from Apps Script failed:', err);
-    return [];
+    return {
+      success: false,
+      points: [],
+      message: `เชื่อมต่อ Apps Script ไม่สำเร็จ: ${(err as Error).message || 'ข้อผิดพลาดเครือข่าย'}`,
+    };
   }
+}
+
+/**
+ * Direct fetch from a public Google Sheet without OAuth using Google Visualization API or CSV
+ * Ensures 100% instant sync across devices even without Apps Script update!
+ */
+export async function fetchRiskPointsFromPublicSheet(
+  sheetIdOrUrl: string
+): Promise<{ success: boolean; points: RiskPoint[]; message: string }> {
+  const sheetId = extractSheetId(sheetIdOrUrl);
+  if (!sheetId) {
+    return { success: false, points: [], message: 'ระบุ Google Sheet ID หรือ Link ไม่ถูกต้อง' };
+  }
+
+  // 1. Try Google Visualization API (GViz)
+  try {
+    const gvizUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:json&_t=${Date.now()}`;
+    const res = await fetch(gvizUrl);
+    if (res.ok) {
+      const text = await res.text();
+      const match = text.match(/google\.visualization\.Query\.setResponse\(([\s\S]*)\);?/);
+      if (match && match[1]) {
+        const json = JSON.parse(match[1]);
+        const rows = json.table?.rows || [];
+        const parsedPoints: RiskPoint[] = [];
+
+        rows.forEach((r: any, idx: number) => {
+          if (!r.c) return;
+          const cells = r.c.map((cell: any) => (cell ? cell.v ?? cell.f ?? '' : ''));
+          const point = parseSheetRowToRiskPoint(cells, idx + 2);
+          if (point) parsedPoints.push(point);
+        });
+
+        if (parsedPoints.length > 0) {
+          return {
+            success: true,
+            points: parsedPoints,
+            message: `ดึงข้อมูลจาก Google Sheets สำเร็จ (${parsedPoints.length} จุด)`,
+          };
+        }
+      }
+    }
+  } catch (gvizErr) {
+    console.warn('GViz fetch failed, trying CSV export:', gvizErr);
+  }
+
+  // 2. Try CSV export fallback
+  try {
+    const csvUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&_t=${Date.now()}`;
+    const res = await fetch(csvUrl);
+    if (res.ok) {
+      const csvText = await res.text();
+      const lines = csvText.split(/\r?\n/).filter((l) => l.trim().length > 0);
+      if (lines.length > 1) {
+        // Skip header row
+        const parsedPoints: RiskPoint[] = [];
+        for (let i = 1; i < lines.length; i++) {
+          const cells = parseCsvLine(lines[i]);
+          const point = parseSheetRowToRiskPoint(cells, i + 1);
+          if (point) parsedPoints.push(point);
+        }
+
+        if (parsedPoints.length > 0) {
+          return {
+            success: true,
+            points: parsedPoints,
+            message: `ดึงข้อมูลผ่าน CSV สำเร็จ (${parsedPoints.length} จุด)`,
+          };
+        }
+      }
+    }
+  } catch (csvErr) {
+    console.warn('CSV export fetch failed:', csvErr);
+  }
+
+  return {
+    success: false,
+    points: [],
+    message: 'ไม่สามารถอ่าน Google Sheet ได้ กรุณาตรวจสอบว่าแชร์เป็น "ทุกคนที่มีลิงก์ดูได้"',
+  };
+}
+
+/**
+ * Robust CSV Line Parser that respects quoted fields containing commas
+ */
+function parseCsvLine(line: string): string[] {
+  const result: string[] = [];
+  let current = '';
+  let inQuotes = false;
+
+  for (let i = 0; i < line.length; i++) {
+    const char = line[i];
+    if (char === '"') {
+      if (inQuotes && line[i + 1] === '"') {
+        current += '"';
+        i++;
+      } else {
+        inQuotes = !inQuotes;
+      }
+    } else if (char === ',' && !inQuotes) {
+      result.push(current.trim());
+      current = '';
+    } else {
+      current += char;
+    }
+  }
+  result.push(current.trim());
+  return result;
 }
 

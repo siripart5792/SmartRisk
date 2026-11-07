@@ -34,6 +34,7 @@ import {
   fetchRiskPointsFromSheet,
   updatePointStatusInSheet,
   syncPointsViaAppsScriptWebhook,
+  fetchRiskPointsFromAppsScript,
 } from './services/googleSheets';
 
 import { Header } from './components/Header';
@@ -117,6 +118,52 @@ export default function App() {
     const unsubscribe = storageService.subscribe(loadStoredData);
     return () => unsubscribe();
   }, [loadStoredData]);
+
+  // --- AUTO PULL FROM GOOGLE SHEETS ON EVERY ENTRY ---
+  const autoPullFromGoogleSheet = useCallback(async () => {
+    const currentSettings = storageService.getSettings();
+    const webhookUrl = currentSettings.appsScriptUrl;
+    const sheetId = currentSettings.googleSheetId;
+
+    if (!webhookUrl && !sheetId) return;
+
+    try {
+      // 1. Try pulling from Apps Script Webhook
+      if (webhookUrl) {
+        const appsScriptPoints = await fetchRiskPointsFromAppsScript(webhookUrl);
+        if (appsScriptPoints && appsScriptPoints.length > 0) {
+          await storageService.batchSaveRiskPoints(appsScriptPoints);
+          const updated = await storageService.getAllRiskPoints();
+          setPoints(updated);
+          storageService.saveSettings({ lastSuccessfulSync: new Date().toISOString() });
+          setSyncStatus('synced');
+          return;
+        }
+      }
+
+      // 2. Try pulling from Google Sheets API if Sheet ID and token are present
+      const token = await getAccessToken();
+      if (token && sheetId) {
+        const sheetPoints = await fetchRiskPointsFromSheet(token, sheetId);
+        if (sheetPoints && sheetPoints.length > 0) {
+          await storageService.batchSaveRiskPoints(sheetPoints);
+          const updated = await storageService.getAllRiskPoints();
+          setPoints(updated);
+          storageService.saveSettings({ lastSuccessfulSync: new Date().toISOString() });
+          setSyncStatus('synced');
+        }
+      }
+    } catch (e) {
+      console.warn('Auto pull from Google Sheets on start failed:', e);
+    }
+  }, []);
+
+  // Run auto-pull every time the user enters/opens the app
+  useEffect(() => {
+    if (effectiveOnline) {
+      autoPullFromGoogleSheet();
+    }
+  }, [effectiveOnline, autoPullFromGoogleSheet]);
 
   // --- GOOGLE WORKSPACE AUTH LISTENER ---
   useEffect(() => {

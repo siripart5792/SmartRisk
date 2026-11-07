@@ -350,11 +350,11 @@ const LeafletFieldMap: React.FC<LeafletMapProps> = ({
       <div ref={mapContainerRef} className="w-full h-full z-0" />
 
       {/* Top Map Type & Layer Controls */}
-      <div className="absolute top-12 sm:top-14 right-2 sm:right-3 z-10 flex items-center bg-slate-900/95 backdrop-blur-md p-0.5 sm:p-1 rounded-xl border border-slate-700/80 shadow-lg text-[11px] sm:text-xs">
+      <div className="absolute top-2.5 sm:top-3 right-2 sm:right-3 z-20 flex items-center bg-slate-900/95 backdrop-blur-md p-0.5 sm:p-1 rounded-xl border border-slate-700/80 shadow-lg text-[11px] sm:text-xs">
         <button
           type="button"
           onClick={() => setMapType('streets')}
-          className={`px-2 sm:px-2.5 py-1 rounded-lg font-medium transition-all min-h-[32px] ${
+          className={`px-2 sm:px-2.5 py-1 rounded-lg font-medium transition-all min-h-[30px] ${
             mapType === 'streets'
               ? 'bg-orange-600 text-white shadow-sm font-semibold'
               : 'text-slate-300 hover:text-white'
@@ -365,7 +365,7 @@ const LeafletFieldMap: React.FC<LeafletMapProps> = ({
         <button
           type="button"
           onClick={() => setMapType('satellite')}
-          className={`px-2 sm:px-2.5 py-1 rounded-lg font-medium transition-all min-h-[32px] ${
+          className={`px-2 sm:px-2.5 py-1 rounded-lg font-medium transition-all min-h-[30px] ${
             mapType === 'satellite'
               ? 'bg-orange-600 text-white shadow-sm font-semibold'
               : 'text-slate-300 hover:text-white'
@@ -376,7 +376,7 @@ const LeafletFieldMap: React.FC<LeafletMapProps> = ({
         <button
           type="button"
           onClick={() => setMapType('dark')}
-          className={`px-2 sm:px-2.5 py-1 rounded-lg font-medium transition-all min-h-[32px] ${
+          className={`px-2 sm:px-2.5 py-1 rounded-lg font-medium transition-all min-h-[30px] ${
             mapType === 'dark'
               ? 'bg-orange-600 text-white shadow-sm font-semibold'
               : 'text-slate-300 hover:text-white'
@@ -463,7 +463,7 @@ const LeafletFieldMap: React.FC<LeafletMapProps> = ({
       )}
 
       {/* Floating Zoom & Map Engine Switcher */}
-      <div className="absolute top-24 sm:top-28 right-2 sm:right-3 z-10 flex flex-col gap-1.5 sm:gap-2">
+      <div className="absolute top-13 sm:top-15 right-2 sm:right-3 z-20 flex flex-col gap-1.5 sm:gap-2">
         <button
           type="button"
           onClick={handleZoomIn}
@@ -571,68 +571,8 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
 
   return (
     <div className="relative w-full h-full flex-1 flex flex-col min-h-0 bg-slate-950">
-      {/* Top Status & Engine Switcher Bar */}
-      <div className="bg-slate-900/95 border-b border-slate-800 px-2.5 sm:px-3 py-1.5 text-xs flex items-center justify-between gap-2 z-30">
-        <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
-          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0"></span>
-          <span className="font-semibold text-slate-100 truncate text-[11px] sm:text-xs">
-            {mapEngine === 'real_map' ? (
-              <>
-                <span className="hidden sm:inline">แผนที่ดาวเทียมและถนนจริง (Real Map)</span>
-                <span className="sm:hidden">แผนที่จริง (Real Map)</span>
-              </>
-            ) : (
-              'Google Maps'
-            )}
-          </span>
-          <span className="hidden md:inline px-1.5 py-0.2 rounded text-[9px] bg-emerald-950 text-emerald-400 border border-emerald-800 font-mono shrink-0">
-            LIVE GPS
-          </span>
-        </div>
-
-        <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
-          {mapEngine === 'real_map' ? (
-            <button
-              type="button"
-              onClick={() => {
-                if (googleLoadFailed) {
-                  alert('Google Maps API บนโปรเจกต์ยังไม่ถูกเปิดใช้งาน กรุณาเปิดใช้งาน Maps JavaScript API ใน Google Cloud Console');
-                } else {
-                  setMapEngine('google_maps');
-                }
-              }}
-              className="px-2 sm:px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-blue-400 text-[10px] sm:text-[11px] font-medium border border-slate-700 transition-colors flex items-center gap-1"
-            >
-              <Globe className="w-3.5 h-3.5 shrink-0" />
-              <span className="hidden sm:inline">ใช้ Google Maps</span>
-              <span className="sm:hidden">Google Maps</span>
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={() => setMapEngine('real_map')}
-              className="px-2 sm:px-2.5 py-1 rounded-lg bg-orange-600 hover:bg-orange-500 text-white text-[10px] sm:text-[11px] font-medium transition-colors flex items-center gap-1"
-            >
-              <Layers className="w-3.5 h-3.5 shrink-0" />
-              <span className="hidden sm:inline">กลับสู่แผนที่หลัก</span>
-              <span className="sm:hidden">แผนที่หลัก</span>
-            </button>
-          )}
-
-          {onSwitchToRadar && (
-            <button
-              type="button"
-              onClick={onSwitchToRadar}
-              className="hidden md:inline-flex px-2 sm:px-2.5 py-1 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white font-semibold text-[10px] sm:text-[11px] transition-colors items-center gap-1"
-            >
-              โหมดเรดาร์
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* Top Filter Chips */}
-      <div className="absolute top-10 sm:top-11 left-2 right-2 sm:left-3 sm:right-3 z-20 flex items-center gap-1 sm:gap-1.5 overflow-x-auto no-scrollbar py-1">
+      {/* Top Filter Chips (Floats cleanly over map without blocking alerts) */}
+      <div className="absolute top-2.5 sm:top-3 left-2 sm:left-3 z-20 flex items-center gap-1 sm:gap-1.5 overflow-x-auto no-scrollbar py-1 max-w-[calc(100%-150px)] sm:max-w-[calc(100%-190px)]">
         <button
           type="button"
           onClick={() => setFilterSeverity('all')}

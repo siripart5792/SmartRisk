@@ -175,7 +175,7 @@ function doGet(e) {
   var action = (e && e.parameter && e.parameter.action) ? e.parameter.action : "";
   var ss = SpreadsheetApp.getActiveSpreadsheet();
 
-  // ดึงรหัส PIN ของ Admin จากแท็บ Admin_Config ใน Google Sheets
+  // 1. ดึงรหัส PIN ของ Admin จากแท็บ Admin_Config ใน Google Sheets
   if (action === "get_admin_pin") {
     var configSheet = ss.getSheetByName("Admin_Config");
     var pin = "9999";
@@ -188,6 +188,47 @@ function doGet(e) {
     })).setMimeType(ContentService.MimeType.JSON);
   }
 
+  // 2. ดึงข้อมูลจุดเสี่ยงทั้งหมดจาก Google Sheets มาแสดงผลในแอปอัตโนมัติ
+  if (action === "get_points" || action === "fetch_points") {
+    var sheet = ss.getSheetByName("Risk_Points_Log") || ss.getActiveSheet();
+    var lastRow = sheet.getLastRow();
+    if (lastRow <= 1) {
+      return ContentService.createTextOutput(JSON.stringify({
+        status: "success",
+        points: []
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+    var rows = sheet.getRange(2, 1, lastRow - 1, 15).getValues();
+    var points = [];
+    for (var i = 0; i < rows.length; i++) {
+      var r = rows[i];
+      if (r[0] || r[2]) {
+        points.push({
+          id: String(r[0] || ("ROW-" + (i + 2))),
+          createdAt: r[1] ? new Date(r[1]).toISOString() : new Date().toISOString(),
+          title: String(r[2] || "จุดเสี่ยง"),
+          category: String(r[3] || "other"),
+          severity: String(r[4] || "high"),
+          lat: Number(r[5]) || 0,
+          lng: Number(r[6]) || 0,
+          accuracy: Number(r[7]) || 5,
+          status: String(r[8] || "pending_review"),
+          reporterName: String(r[9] || "เจ้าหน้าที่"),
+          reporterRole: String(r[10] || "staff"),
+          reporterUnit: String(r[11] || "-"),
+          description: String(r[12] || ""),
+          notes: String(r[13] || ""),
+          syncStatus: "synced",
+          lastSyncedAt: new Date().toISOString()
+        });
+      }
+    }
+    return ContentService.createTextOutput(JSON.stringify({
+      status: "success",
+      points: points
+    })).setMimeType(ContentService.MimeType.JSON);
+  }
+
   return ContentService.createTextOutput(JSON.stringify({
     service: "GeoRisk Field Ops Webhook",
     status: "active",
@@ -196,8 +237,8 @@ function doGet(e) {
 }`;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4 animate-in fade-in">
-      <div className="w-full max-w-xl bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl max-h-[92vh] flex flex-col overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-slate-950/80 backdrop-blur-sm p-0 sm:p-4 animate-in fade-in">
+      <div className="w-full max-w-xl bg-slate-900 border border-slate-800 rounded-t-3xl sm:rounded-2xl shadow-2xl max-h-[92dvh] flex flex-col overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-800 bg-slate-950/50">
           <div className="flex items-center gap-2">

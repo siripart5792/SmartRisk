@@ -183,7 +183,7 @@ export const AddRiskModal: React.FC<AddRiskModalProps> = ({
             <label className="text-xs font-semibold text-slate-300 block mb-2">
               หมวดหมู่จุดเสี่ยง <span className="text-red-400">*</span>
             </label>
-            <div className="grid grid-cols-4 gap-2">
+            <div className="grid grid-cols-2 xs:grid-cols-3 sm:grid-cols-4 gap-2">
               {CATEGORIES.map((cat) => {
                 const Icon = cat.icon;
                 const isSelected = category === cat.id;
@@ -192,9 +192,9 @@ export const AddRiskModal: React.FC<AddRiskModalProps> = ({
                     key={cat.id}
                     type="button"
                     onClick={() => setCategory(cat.id)}
-                    className={`p-2 rounded-xl border flex flex-col items-center justify-center gap-1 transition-all ${
+                    className={`p-2 rounded-xl border flex flex-col items-center justify-center gap-1 transition-all min-h-[44px] ${
                       isSelected
-                        ? 'bg-orange-950/80 border-orange-500 text-orange-300 shadow-md shadow-orange-950/50'
+                        ? 'bg-orange-950/80 border-orange-500 text-orange-300 shadow-md shadow-orange-950/50 font-bold'
                         : 'bg-slate-950/60 border-slate-800 text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
                     }`}
                   >
@@ -208,12 +208,12 @@ export const AddRiskModal: React.FC<AddRiskModalProps> = ({
             </div>
           </div>
 
-          {/* Severity Selector */}
+          {/* Severity Selector (3 Levels: High, Medium, Low) */}
           <div>
             <label className="text-xs font-semibold text-slate-300 block mb-2">
               ระดับความรุนแรง <span className="text-red-400">*</span>
             </label>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            <div className="grid grid-cols-3 gap-2">
               {SEVERITIES.map((sev) => {
                 const isSelected = severity === sev.id;
                 return (
@@ -221,14 +221,14 @@ export const AddRiskModal: React.FC<AddRiskModalProps> = ({
                     key={sev.id}
                     type="button"
                     onClick={() => setSeverity(sev.id)}
-                    className={`px-3 py-2 rounded-xl border text-center transition-all ${
+                    className={`px-2 py-2 sm:px-3 sm:py-2.5 rounded-xl border text-center transition-all min-h-[44px] ${
                       isSelected
                         ? `${sev.color} text-white shadow-md font-bold scale-[1.02]`
                         : 'bg-slate-950/60 border-slate-800 text-slate-400 hover:text-slate-200'
                     }`}
                   >
                     <div className="text-xs font-semibold">{sev.label}</div>
-                    <div className="text-[9px] opacity-80 line-clamp-1">{sev.desc}</div>
+                    <div className="text-[9px] opacity-80 truncate">{sev.desc}</div>
                   </button>
                 );
               })}

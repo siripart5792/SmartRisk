@@ -60,7 +60,7 @@ export const GeofenceAlertBanner: React.FC<GeofenceAlertBannerProps> = ({
   const isHigh = topAlert.point.severity === 'high' || (topAlert.point.severity as string) === 'critical';
 
   return (
-    <div className="absolute top-14 left-3 right-3 z-30 max-w-lg mx-auto animate-in slide-in-from-top duration-300">
+    <div className="absolute top-13 sm:top-14 left-2.5 right-2.5 sm:left-4 sm:right-4 z-50 max-w-xl mx-auto animate-in slide-in-from-top duration-300 pointer-events-auto">
       <div
         className={`p-3.5 rounded-2xl border shadow-2xl backdrop-blur-md flex items-center justify-between gap-3 ${
           isHigh

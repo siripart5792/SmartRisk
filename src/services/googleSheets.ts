@@ -374,3 +374,77 @@ export async function syncPointsViaAppsScriptWebhook(
     );
   }
 }
+
+/**
+ * Fetches existing risk points from Google Sheets via Apps Script Webhook (GET request)
+ * Allows automatic retrieval every time the user enters the application.
+ */
+export async function fetchRiskPointsFromAppsScript(
+  appsScriptUrl: string
+): Promise<RiskPoint[]> {
+  if (!appsScriptUrl || !appsScriptUrl.trim()) return [];
+
+  try {
+    const url = appsScriptUrl.includes('?')
+      ? `${appsScriptUrl}&action=get_points`
+      : `${appsScriptUrl}?action=get_points`;
+
+    const response = await fetch(url, {
+      method: 'GET',
+    });
+
+    if (!response.ok) return [];
+
+    const text = await response.text();
+    let data: { status?: string; points?: any[] };
+    try {
+      data = JSON.parse(text);
+    } catch {
+      return [];
+    }
+
+    if (!data || data.status !== 'success' || !Array.isArray(data.points)) {
+      return [];
+    }
+
+    // Parse and normalize returned points
+    const parsed: RiskPoint[] = data.points
+      .map((p: any) => {
+        let category: RiskCategory = p.category || 'other';
+        if ((category as string) === 'tree_fall') category = 'other';
+        if ((category as string) === 'landslide') category = 'road_damage';
+
+        let severity: RiskSeverity = 'medium';
+        if (p.severity === 'high' || p.severity === 'critical') severity = 'high';
+        else if (p.severity === 'low') severity = 'low';
+        else severity = 'medium';
+
+        return {
+          id: String(p.id || `SYNC-${Date.now()}`),
+          title: String(p.title || 'จุดเสี่ยงจาก Google Sheets'),
+          category,
+          severity,
+          status: (p.status as RiskStatus) || 'approved',
+          lat: Number(p.lat),
+          lng: Number(p.lng),
+          accuracy: Number(p.accuracy) || 5,
+          reporterName: String(p.reporterName || 'ระบบส่วนกลาง'),
+          reporterRole: (p.reporterRole as 'staff' | 'admin') || 'admin',
+          reporterUnit: String(p.reporterUnit || ''),
+          description: String(p.description || ''),
+          notes: String(p.notes || ''),
+          createdAt: p.createdAt ? new Date(p.createdAt).toISOString() : new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          syncStatus: 'synced' as const,
+          lastSyncedAt: new Date().toISOString(),
+        };
+      })
+      .filter((p: RiskPoint) => !isNaN(p.lat) && !isNaN(p.lng) && p.lat !== 0 && p.lng !== 0);
+
+    return parsed;
+  } catch (err) {
+    console.warn('Auto-fetch points from Apps Script failed:', err);
+    return [];
+  }
+}
+

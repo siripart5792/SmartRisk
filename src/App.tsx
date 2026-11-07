@@ -33,6 +33,9 @@ import {
   appendRiskPointsToSheet,
   fetchRiskPointsFromSheet,
   updatePointStatusInSheet,
+  updatePointStatusViaWebhook,
+  deletePointViaWebhook,
+  deletePointFromOAuthSheet,
   syncPointsViaAppsScriptWebhook,
   fetchRiskPointsFromAppsScript,
   fetchRiskPointsFromPublicSheet,
@@ -123,8 +126,17 @@ export default function App() {
     return () => unsubscribe();
   }, [loadStoredData]);
 
+  // Reference to throttle rapid consecutive manual/tab clicks (minimum 2.5s gap unless forced)
+  const lastPullTimeRef = useRef<number>(0);
+
   // --- AUTO PULL FROM GOOGLE SHEETS & CENTRAL SYNC ---
-  const autoPullFromGoogleSheet = useCallback(async (showToast: boolean = false) => {
+  const autoPullFromGoogleSheet = useCallback(async (showToast: boolean = false, force: boolean = false) => {
+    const now = Date.now();
+    if (!force && now - lastPullTimeRef.current < 2500) {
+      return;
+    }
+    lastPullTimeRef.current = now;
+
     const currentSettings = storageService.getSettings();
     const webhookUrl = currentSettings.appsScriptUrl;
     const sheetId = currentSettings.googleSheetId;
@@ -199,17 +211,17 @@ export default function App() {
     }
   }, []);
 
-  // Run auto-pull on start and periodically every 25 seconds when online so all devices stay synchronized
+  // Run auto-pull periodically every 1 minute 20 seconds (80,000 ms) when online so all devices stay synchronized
   useEffect(() => {
     if (!effectiveOnline) return;
 
     // Pull immediately upon becoming online
-    autoPullFromGoogleSheet(false);
+    autoPullFromGoogleSheet(false, true);
 
-    // Pull periodically every 25 seconds in background
+    // Pull periodically every 1 minute 20 seconds (80,000 ms) in background
     const intervalId = setInterval(() => {
-      autoPullFromGoogleSheet(false);
-    }, 25000);
+      autoPullFromGoogleSheet(false, true);
+    }, 80000);
 
     // Pull when user refocuses the app window/tab
     const handleFocus = () => {
@@ -221,6 +233,27 @@ export default function App() {
       clearInterval(intervalId);
       window.removeEventListener('focus', handleFocus);
     };
+  }, [effectiveOnline, autoPullFromGoogleSheet]);
+
+  // Pull immediately whenever user navigates or switches view ('map' | 'radar' | 'list')
+  useEffect(() => {
+    if (effectiveOnline) {
+      autoPullFromGoogleSheet(false);
+    }
+  }, [activeView, effectiveOnline, autoPullFromGoogleSheet]);
+
+  // Handler for topic/filter/navigation clicks across the system
+  const handleTopicOrNavAction = useCallback(() => {
+    if (effectiveOnline) {
+      autoPullFromGoogleSheet(false);
+    }
+  }, [effectiveOnline, autoPullFromGoogleSheet]);
+
+  const handleViewChange = useCallback((view: 'map' | 'radar' | 'list') => {
+    setActiveView(view);
+    if (effectiveOnline) {
+      autoPullFromGoogleSheet(false);
+    }
   }, [effectiveOnline, autoPullFromGoogleSheet]);
 
   // --- GOOGLE WORKSPACE AUTH LISTENER ---
@@ -442,17 +475,37 @@ export default function App() {
       status: 'approved',
       updatedAt: new Date().toISOString(),
     };
-    await storageService.saveRiskPoint(updatedPoint, true);
 
-    const token = await getAccessToken();
-    if (token && settings.googleSheetId && point.sheetRowIndex) {
-      updatePointStatusInSheet(token, settings.googleSheetId, point.sheetRowIndex, 'approved', 'อนุมัติโดยแอดมิน');
-    }
+    // 1. Save locally without adding to batch append queue (in-place status update)
+    await storageService.saveRiskPoint(updatedPoint, false);
+    await storageService.removePendingSyncItem(point.id);
 
-    // Auto-sync immediately every time!
+    // Update state immediately
+    setPoints((prev) => prev.map((p) => (p.id === point.id ? updatedPoint : p)));
+
+    // 2. Update status in Google Sheets in-place (DO NOT append new row!)
     if (effectiveOnline) {
-      handleBatchSync();
+      if (settings.appsScriptUrl) {
+        try {
+          await updatePointStatusViaWebhook(settings.appsScriptUrl, point.id, 'approved', 'อนุมัติโดยผู้ดูแลระบบ');
+        } catch (err) {
+          console.warn('Webhook status update failed:', err);
+        }
+      }
+
+      const token = await getAccessToken();
+      if (token && settings.googleSheetId && point.sheetRowIndex) {
+        try {
+          await updatePointStatusInSheet(token, settings.googleSheetId, point.sheetRowIndex, 'approved', 'อนุมัติโดยผู้ดูแลระบบ');
+        } catch (err) {
+          console.warn('OAuth status update failed:', err);
+        }
+      }
     }
+
+    setSyncNotice(`อนุมัติและปรับปรุงสถานะจุด "${point.title}" ใน Google Sheets เรียบร้อย`);
+    setTimeout(() => setSyncNotice(null), 3000);
+    audioAlertService.playSuccessChime();
   };
 
   const handleRejectPoint = async (point: RiskPoint) => {
@@ -461,21 +514,71 @@ export default function App() {
       status: 'rejected',
       updatedAt: new Date().toISOString(),
     };
-    await storageService.saveRiskPoint(updatedPoint, true);
 
-    const token = await getAccessToken();
-    if (token && settings.googleSheetId && point.sheetRowIndex) {
-      updatePointStatusInSheet(token, settings.googleSheetId, point.sheetRowIndex, 'rejected', 'ไม่อนุมัติโดยแอดมิน');
-    }
+    // 1. Save locally without adding to batch append queue
+    await storageService.saveRiskPoint(updatedPoint, false);
+    await storageService.removePendingSyncItem(point.id);
 
-    // Auto-sync immediately every time!
+    // Update state immediately
+    setPoints((prev) => prev.map((p) => (p.id === point.id ? updatedPoint : p)));
+
+    // 2. Update status in Google Sheets in-place
     if (effectiveOnline) {
-      handleBatchSync();
+      if (settings.appsScriptUrl) {
+        try {
+          await updatePointStatusViaWebhook(settings.appsScriptUrl, point.id, 'rejected', 'ไม่อนุมัติโดยผู้ดูแลระบบ');
+        } catch (err) {
+          console.warn('Webhook status update failed:', err);
+        }
+      }
+
+      const token = await getAccessToken();
+      if (token && settings.googleSheetId && point.sheetRowIndex) {
+        try {
+          await updatePointStatusInSheet(token, settings.googleSheetId, point.sheetRowIndex, 'rejected', 'ไม่อนุมัติโดยผู้ดูแลระบบ');
+        } catch (err) {
+          console.warn('OAuth status update failed:', err);
+        }
+      }
     }
+
+    setSyncNotice(`ปรับสถานะไม่อนุมัติจุด "${point.title}" ใน Google Sheets เรียบร้อย`);
+    setTimeout(() => setSyncNotice(null), 3000);
   };
 
   const handleDeletePoint = async (pointId: string) => {
+    const pointToDelete = points.find((p) => p.id === pointId);
+
+    // 1. Delete from local storage & pending sync queue
     await storageService.deleteRiskPoint(pointId);
+
+    // 2. Remove from active alerts & local points state
+    setPoints((prev) => prev.filter((p) => p.id !== pointId));
+    alertedIdsRef.current.delete(pointId);
+    setActiveAlerts((prev) => prev.filter((a) => a.point.id !== pointId));
+
+    // 3. Delete from Google Sheets directly
+    if (effectiveOnline) {
+      if (settings.appsScriptUrl) {
+        try {
+          await deletePointViaWebhook(settings.appsScriptUrl, pointId);
+        } catch (err) {
+          console.warn('Webhook delete point failed:', err);
+        }
+      }
+
+      const token = await getAccessToken();
+      if (token && settings.googleSheetId && pointToDelete?.sheetRowIndex) {
+        try {
+          await deletePointFromOAuthSheet(token, settings.googleSheetId, pointToDelete.sheetRowIndex);
+        } catch (err) {
+          console.warn('OAuth delete point failed:', err);
+        }
+      }
+    }
+
+    setSyncNotice(`ลบจุดเสี่ยง "${pointToDelete?.title || pointId}" ออกจากระบบและ Google Sheets สำเร็จ`);
+    setTimeout(() => setSyncNotice(null), 3500);
   };
 
   const handleCreateNewSheet = async () => {
@@ -537,10 +640,16 @@ export default function App() {
         currentUserRole={userProfile.role}
         onToggleRole={handleToggleRole}
         currentUserName={userProfile.name}
-        onOpenSheetsModal={() => setIsSheetsModalOpen(true)}
-        onOpenSettingsModal={() => setIsSettingsModalOpen(true)}
+        onOpenSheetsModal={() => {
+          setIsSheetsModalOpen(true);
+          handleTopicOrNavAction();
+        }}
+        onOpenSettingsModal={() => {
+          setIsSettingsModalOpen(true);
+          handleTopicOrNavAction();
+        }}
         activeView={activeView}
-        onViewChange={setActiveView}
+        onViewChange={handleViewChange}
       />
 
       {/* Sync Notice Toast */}
@@ -554,7 +663,10 @@ export default function App() {
       {/* Old Apps Script Version Notice */}
       {oldVersionWarning && !syncNotice && (
         <div
-          onClick={() => setIsSheetsModalOpen(true)}
+          onClick={() => {
+            setIsSheetsModalOpen(true);
+            handleTopicOrNavAction();
+          }}
           className="bg-amber-950/90 border-b border-amber-800/80 px-3 py-1.5 text-xs text-amber-200 flex items-center justify-between cursor-pointer hover:bg-amber-900 transition-colors z-40"
         >
           <div className="flex items-center gap-2 truncate">
@@ -580,25 +692,29 @@ export default function App() {
           audioAlertService.setMuted(next);
         }}
         onViewPoint={(alert) => {
-          setActiveView('map');
+          handleViewChange('map');
         }}
       />
 
       {/* Main View Area with Error Boundary Protection */}
       <main className="flex-1 relative flex flex-col min-h-0 overflow-hidden">
-        <ErrorBoundary fallbackView="radar" onSwitchView={setActiveView}>
+        <ErrorBoundary fallbackView="radar" onSwitchView={handleViewChange}>
           {activeView === 'map' && (
             <InteractiveMap
               apiKey={mapsApiKey}
               points={points}
               currentGPS={currentGPS}
               onSelectPoint={(point) => {}}
-              onOpenAddModal={() => setIsAddModalOpen(true)}
+              onOpenAddModal={() => {
+                setIsAddModalOpen(true);
+                handleTopicOrNavAction();
+              }}
               currentUserRole={userProfile.role}
               onApprovePoint={handleApprovePoint}
               onRejectPoint={handleRejectPoint}
               alertRadiusMeters={settings.alertRadiusMeters}
-              onSwitchToRadar={() => setActiveView('radar')}
+              onSwitchToRadar={() => handleViewChange('radar')}
+              onTopicChange={handleTopicOrNavAction}
             />
           )}
 
@@ -608,7 +724,10 @@ export default function App() {
               currentGPS={currentGPS}
               alertRadiusMeters={settings.alertRadiusMeters}
               onSelectPoint={(point) => {}}
-              onOpenAddModal={() => setIsAddModalOpen(true)}
+              onOpenAddModal={() => {
+                setIsAddModalOpen(true);
+                handleTopicOrNavAction();
+              }}
             />
           )}
 
@@ -618,12 +737,16 @@ export default function App() {
               currentGPS={currentGPS}
               currentUserRole={userProfile.role}
               onSelectPoint={(point) => {
-                setActiveView('map');
+                handleViewChange('map');
               }}
               onApprovePoint={handleApprovePoint}
               onRejectPoint={handleRejectPoint}
               onDeletePoint={handleDeletePoint}
-              onOpenAddModal={() => setIsAddModalOpen(true)}
+              onOpenAddModal={() => {
+                setIsAddModalOpen(true);
+                handleTopicOrNavAction();
+              }}
+              onTopicChange={handleTopicOrNavAction}
             />
           )}
         </ErrorBoundary>
@@ -632,9 +755,15 @@ export default function App() {
       {/* Mobile Bottom Navigation Bar (Hidden on md and desktop) */}
       <MobileBottomNav
         activeView={activeView}
-        onViewChange={setActiveView}
-        onOpenAddModal={() => setIsAddModalOpen(true)}
-        onOpenSheetsModal={() => setIsSheetsModalOpen(true)}
+        onViewChange={handleViewChange}
+        onOpenAddModal={() => {
+          setIsAddModalOpen(true);
+          handleTopicOrNavAction();
+        }}
+        onOpenSheetsModal={() => {
+          setIsSheetsModalOpen(true);
+          handleTopicOrNavAction();
+        }}
         pointsCount={points.length}
       />
 

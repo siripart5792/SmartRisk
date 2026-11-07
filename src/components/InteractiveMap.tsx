@@ -49,6 +49,7 @@ interface InteractiveMapProps {
   onRejectPoint?: (point: RiskPoint) => void;
   alertRadiusMeters: number;
   onSwitchToRadar?: () => void;
+  onTopicChange?: () => void;
 }
 
 // Icon mapper for risk categories
@@ -532,6 +533,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
   onRejectPoint,
   alertRadiusMeters,
   onSwitchToRadar,
+  onTopicChange,
 }) => {
   const [filterSeverity, setFilterSeverity] = useState<string>('all');
   const [mapEngine, setMapEngine] = useState<'real_map' | 'google_maps'>('real_map');
@@ -575,7 +577,10 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
       <div className="absolute top-2.5 sm:top-3 left-2 sm:left-3 z-20 flex items-center gap-1 sm:gap-1.5 overflow-x-auto no-scrollbar py-1 max-w-[calc(100%-150px)] sm:max-w-[calc(100%-190px)]">
         <button
           type="button"
-          onClick={() => setFilterSeverity('all')}
+          onClick={() => {
+            setFilterSeverity('all');
+            onTopicChange?.();
+          }}
           className={`px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-full text-[11px] sm:text-xs font-semibold whitespace-nowrap shadow-md backdrop-blur-md transition-colors ${
             filterSeverity === 'all'
               ? 'bg-orange-600 text-white border border-orange-500'
@@ -586,7 +591,10 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
         </button>
         <button
           type="button"
-          onClick={() => setFilterSeverity('high')}
+          onClick={() => {
+            setFilterSeverity('high');
+            onTopicChange?.();
+          }}
           className={`px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap shadow-md backdrop-blur-md transition-colors ${
             filterSeverity === 'high'
               ? 'bg-red-600 text-white border border-red-500'
@@ -597,7 +605,10 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
         </button>
         <button
           type="button"
-          onClick={() => setFilterSeverity('medium')}
+          onClick={() => {
+            setFilterSeverity('medium');
+            onTopicChange?.();
+          }}
           className={`px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap shadow-md backdrop-blur-md transition-colors ${
             filterSeverity === 'medium'
               ? 'bg-amber-600 text-white border border-amber-500'
@@ -608,7 +619,10 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
         </button>
         <button
           type="button"
-          onClick={() => setFilterSeverity('low')}
+          onClick={() => {
+            setFilterSeverity('low');
+            onTopicChange?.();
+          }}
           className={`px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap shadow-md backdrop-blur-md transition-colors ${
             filterSeverity === 'low'
               ? 'bg-blue-600 text-white border border-blue-500'

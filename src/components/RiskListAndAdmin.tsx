@@ -26,6 +26,7 @@ interface RiskListProps {
   onRejectPoint: (point: RiskPoint) => void;
   onDeletePoint: (pointId: string) => void;
   onOpenAddModal: () => void;
+  onTopicChange?: () => void;
 }
 
 export const RiskListAndAdmin: React.FC<RiskListProps> = ({
@@ -37,6 +38,7 @@ export const RiskListAndAdmin: React.FC<RiskListProps> = ({
   onRejectPoint,
   onDeletePoint,
   onOpenAddModal,
+  onTopicChange,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -138,7 +140,10 @@ export const RiskListAndAdmin: React.FC<RiskListProps> = ({
               <Filter className="w-3 h-3" /> สถานะ:
             </span>
             <button
-              onClick={() => setStatusFilter('all')}
+              onClick={() => {
+                setStatusFilter('all');
+                onTopicChange?.();
+              }}
               className={`px-2.5 py-1 rounded-lg shrink-0 font-medium ${
                 statusFilter === 'all'
                   ? 'bg-slate-700 text-white font-semibold'
@@ -148,7 +153,10 @@ export const RiskListAndAdmin: React.FC<RiskListProps> = ({
               ทั้งหมด ({points.length})
             </button>
             <button
-              onClick={() => setStatusFilter('pending_review')}
+              onClick={() => {
+                setStatusFilter('pending_review');
+                onTopicChange?.();
+              }}
               className={`px-2.5 py-1 rounded-lg shrink-0 font-medium ${
                 statusFilter === 'pending_review'
                   ? 'bg-amber-600 text-white font-semibold'
@@ -158,7 +166,10 @@ export const RiskListAndAdmin: React.FC<RiskListProps> = ({
               รอตรวจ ({points.filter((p) => p.status === 'pending_review').length})
             </button>
             <button
-              onClick={() => setStatusFilter('approved')}
+              onClick={() => {
+                setStatusFilter('approved');
+                onTopicChange?.();
+              }}
               className={`px-2.5 py-1 rounded-lg shrink-0 font-medium ${
                 statusFilter === 'approved'
                   ? 'bg-emerald-600 text-white font-semibold'

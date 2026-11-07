@@ -319,6 +319,109 @@ export async function updatePointStatusInSheet(
 }
 
 /**
+ * Updates status of an existing point in Google Sheets via Apps Script Webhook
+ * Modifies the row directly without appending a new row.
+ */
+export async function updatePointStatusViaWebhook(
+  webhookUrl: string,
+  pointId: string,
+  newStatus: RiskStatus,
+  notes: string = 'อนุมัติโดยผู้ดูแลระบบ'
+): Promise<void> {
+  const statusName = STATUS_NAMES[newStatus] || newStatus;
+  const payload = {
+    action: 'update_status',
+    pointId,
+    status: statusName,
+    notes,
+    timestamp: new Date().toISOString(),
+  };
+
+  try {
+    const response = await fetch(webhookUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'text/plain;charset=utf-8',
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      console.warn(`Update status via webhook returned HTTP ${response.status}`);
+    }
+  } catch (err) {
+    console.warn('Update status via webhook error:', err);
+  }
+}
+
+/**
+ * Deletes a risk point row from Google Sheets via Apps Script Webhook
+ */
+export async function deletePointViaWebhook(
+  webhookUrl: string,
+  pointId: string
+): Promise<void> {
+  const payload = {
+    action: 'delete_point',
+    pointId,
+    timestamp: new Date().toISOString(),
+  };
+
+  try {
+    const response = await fetch(webhookUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'text/plain;charset=utf-8',
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      console.warn(`Delete point via webhook returned HTTP ${response.status}`);
+    }
+  } catch (err) {
+    console.warn('Delete point via webhook error:', err);
+  }
+}
+
+/**
+ * Deletes a row in Google Sheets via Google Sheets v4 API
+ */
+export async function deletePointFromOAuthSheet(
+  accessToken: string,
+  spreadsheetId: string,
+  rowIndex: number,
+  sheetId: number = 0
+): Promise<void> {
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}:batchUpdate`;
+  try {
+    await fetch(url, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        requests: [
+          {
+            deleteDimension: {
+              range: {
+                sheetId,
+                dimension: 'ROWS',
+                startIndex: rowIndex - 1,
+                endIndex: rowIndex,
+              },
+            },
+          },
+        ],
+      }),
+    });
+  } catch (err) {
+    console.warn('Delete row via OAuth Sheets API error:', err);
+  }
+}
+
+/**
  * Batch syncs risk points directly through Google Apps Script Web App Webhook
  * Allows completely keyless / OAuth-free field sync across all field staff devices.
  */

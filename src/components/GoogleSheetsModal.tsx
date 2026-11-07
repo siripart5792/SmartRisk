@@ -123,7 +123,71 @@ function doPost(e) {
       return getPointsOutput(ss);
     }
 
-    // 3. จัดการรับข้อมูลจุดเสี่ยงแบบ Batch Sync
+    // 3. แก้ไขสถานะจุดเสี่ยง (Update Status) - เมื่ออนุมัติให้แก้ไขสถานะ ไม่เพิ่มแถวใหม่!
+    if (payload.action === "update_status") {
+      var pointId = String(payload.pointId || "").trim();
+      var newStatus = String(payload.status || "approved").trim();
+      var notes = String(payload.notes || "").trim();
+      var sheet = ss.getSheetByName("Risk_Points_Log") || ss.getActiveSheet();
+      var lastRow = sheet.getLastRow();
+      var foundRow = -1;
+
+      if (lastRow > 1) {
+        var ids = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
+        for (var i = 0; i < ids.length; i++) {
+          if (String(ids[i][0]).trim() === pointId) {
+            foundRow = i + 2;
+            break;
+          }
+        }
+      }
+
+      if (foundRow > 1) {
+        // คอลัมน์ I (คอลัมน์ที่ 9) คือ สถานะ
+        sheet.getRange(foundRow, 9).setValue(newStatus);
+        if (notes) {
+          sheet.getRange(foundRow, 14).setValue(notes);
+        }
+        sheet.getRange(foundRow, 15).setValue(new Date().toLocaleString("th-TH"));
+        return ContentService.createTextOutput(JSON.stringify({
+          status: "success",
+          message: "แก้ไขสถานะแถวที่ " + foundRow + " ใน Google Sheets สำเร็จ",
+          updatedRow: foundRow
+        })).setMimeType(ContentService.MimeType.JSON);
+      } else {
+        return ContentService.createTextOutput(JSON.stringify({
+          status: "error",
+          message: "ไม่พบจุดเสี่ยงรหัส " + pointId + " ในชีต"
+        })).setMimeType(ContentService.MimeType.JSON);
+      }
+    }
+
+    // 4. ลบจุดเสี่ยงออกจาก Google Sheets (Delete Point)
+    if (payload.action === "delete_point") {
+      var pointId = String(payload.pointId || "").trim();
+      var sheet = ss.getSheetByName("Risk_Points_Log") || ss.getActiveSheet();
+      var lastRow = sheet.getLastRow();
+      var deletedRow = -1;
+
+      if (lastRow > 1) {
+        var ids = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
+        for (var i = 0; i < ids.length; i++) {
+          if (String(ids[i][0]).trim() === pointId) {
+            deletedRow = i + 2;
+            sheet.deleteRow(deletedRow);
+            break;
+          }
+        }
+      }
+
+      return ContentService.createTextOutput(JSON.stringify({
+        status: "success",
+        message: deletedRow > 1 ? ("ลบแถวที่ " + deletedRow + " ใน Google Sheets เรียบร้อย") : "ไม่พบแถวที่ต้องการลบ (อาจถูกลบไปแล้ว)",
+        deletedRow: deletedRow
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+
+    // 5. จัดการรับข้อมูลจุดเสี่ยงแบบ Batch Sync (บันทึกจุดเสี่ยงใหม่)
     var points = payload.points || [];
     var sheet = ss.getSheetByName("Risk_Points_Log") || ss.getActiveSheet();
 
@@ -196,6 +260,42 @@ function doGet(e) {
   // 2. ดึงข้อมูลจุดเสี่ยงทั้งหมดจาก Google Sheets มาแสดงผลในแผนที่
   if (action === "get_points" || action === "fetch_points") {
     return getPointsOutput(ss);
+  }
+
+  // 3. แก้ไขสถานะผ่าน GET
+  if (action === "update_status" && e.parameter.pointId) {
+    var pointId = String(e.parameter.pointId).trim();
+    var newStatus = String(e.parameter.status || "approved").trim();
+    var sheet = ss.getSheetByName("Risk_Points_Log") || ss.getActiveSheet();
+    var lastRow = sheet.getLastRow();
+    if (lastRow > 1) {
+      var ids = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
+      for (var i = 0; i < ids.length; i++) {
+        if (String(ids[i][0]).trim() === pointId) {
+          sheet.getRange(i + 2, 9).setValue(newStatus);
+          sheet.getRange(i + 2, 15).setValue(new Date().toLocaleString("th-TH"));
+          return ContentService.createTextOutput(JSON.stringify({ status: "success", updatedRow: i + 2 })).setMimeType(ContentService.MimeType.JSON);
+        }
+      }
+    }
+    return ContentService.createTextOutput(JSON.stringify({ status: "error", message: "Not found" })).setMimeType(ContentService.MimeType.JSON);
+  }
+
+  // 4. ลบจุดเสี่ยงผ่าน GET
+  if (action === "delete_point" && e.parameter.pointId) {
+    var pointId = String(e.parameter.pointId).trim();
+    var sheet = ss.getSheetByName("Risk_Points_Log") || ss.getActiveSheet();
+    var lastRow = sheet.getLastRow();
+    if (lastRow > 1) {
+      var ids = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
+      for (var i = 0; i < ids.length; i++) {
+        if (String(ids[i][0]).trim() === pointId) {
+          sheet.deleteRow(i + 2);
+          return ContentService.createTextOutput(JSON.stringify({ status: "success", deletedRow: i + 2 })).setMimeType(ContentService.MimeType.JSON);
+        }
+      }
+    }
+    return ContentService.createTextOutput(JSON.stringify({ status: "success", message: "Already deleted or not found" })).setMimeType(ContentService.MimeType.JSON);
   }
 
   return ContentService.createTextOutput(JSON.stringify({

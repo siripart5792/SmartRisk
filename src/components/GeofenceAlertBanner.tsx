@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import {
   AlertTriangle,
   Zap,
@@ -7,13 +7,13 @@ import {
   Volume2,
   VolumeX,
   Check,
-  Navigation,
   CornerUpRight,
   TrendingDown,
   LightbulbOff,
   Car,
 } from 'lucide-react';
 import { GeofenceAlert, RiskCategory } from '../types';
+import { audioAlertService } from '../services/audioAlert';
 
 interface GeofenceAlertBannerProps {
   alerts: GeofenceAlert[];
@@ -53,9 +53,30 @@ export const GeofenceAlertBanner: React.FC<GeofenceAlertBannerProps> = ({
 }) => {
   // Only show active unacknowledged alerts
   const activeAlerts = alerts.filter((a) => !a.acknowledged);
-  if (activeAlerts.length === 0) return null;
+  const topAlert = activeAlerts.length > 0 ? activeAlerts[0] : null;
 
-  const topAlert = activeAlerts[0];
+  // Track last played alert ID to avoid continuous looping for the same point
+  const lastSoundAlertIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!topAlert || isMuted) return;
+
+    // Trigger audible alarm when a new alert pops up
+    if (lastSoundAlertIdRef.current !== topAlert.point.id) {
+      lastSoundAlertIdRef.current = topAlert.point.id;
+      const isHigh =
+        topAlert.point.severity === 'high' || (topAlert.point.severity as string) === 'critical';
+
+      if (isHigh) {
+        audioAlertService.playCriticalAlert(topAlert.point.title);
+      } else {
+        audioAlertService.playCautionAlert();
+      }
+    }
+  }, [topAlert, isMuted]);
+
+  if (!topAlert) return null;
+
   const IconComp = getCategoryIcon(topAlert.point.category);
   const isHigh = topAlert.point.severity === 'high' || (topAlert.point.severity as string) === 'critical';
 
@@ -70,7 +91,7 @@ export const GeofenceAlertBanner: React.FC<GeofenceAlertBannerProps> = ({
       >
         <div className="flex items-center gap-2.5 overflow-hidden">
           <div
-            className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+            className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 shadow-lg ${
               isHigh ? 'bg-red-600 text-white' : 'bg-orange-600 text-white'
             }`}
           >
@@ -104,7 +125,13 @@ export const GeofenceAlertBanner: React.FC<GeofenceAlertBannerProps> = ({
         {/* Action Buttons */}
         <div className="flex items-center gap-1.5 shrink-0">
           <button
-            onClick={onToggleMute}
+            onClick={() => {
+              onToggleMute();
+              // If unmuting, provide audio feedback
+              if (isMuted) {
+                audioAlertService.playCautionAlert();
+              }
+            }}
             className="p-2 rounded-xl bg-black/30 hover:bg-black/50 text-slate-300 transition-colors"
             title={isMuted ? 'เปิดเสียงเตือน' : 'ปิดเสียงเตือน'}
           >

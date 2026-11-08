@@ -211,17 +211,17 @@ export default function App() {
     }
   }, []);
 
-  // Run auto-pull periodically every 1 minute 20 seconds (80,000 ms) when online so all devices stay synchronized
+  // Run auto-pull periodically every 40 seconds (40,000 ms) when online so all devices stay synchronized
   useEffect(() => {
     if (!effectiveOnline) return;
 
     // Pull immediately upon becoming online
     autoPullFromGoogleSheet(false, true);
 
-    // Pull periodically every 1 minute 20 seconds (80,000 ms) in background
+    // Pull periodically every 40 seconds (40,000 ms) in background
     const intervalId = setInterval(() => {
       autoPullFromGoogleSheet(false, true);
-    }, 80000);
+    }, 40000);
 
     // Pull when user refocuses the app window/tab
     const handleFocus = () => {

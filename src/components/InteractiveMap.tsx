@@ -158,25 +158,29 @@ const LeafletFieldMap: React.FC<LeafletMapProps> = ({
   const [mapType, setMapType] = useState<'streets' | 'satellite' | 'dark'>('streets');
   const [selectedPoint, setSelectedPoint] = useState<RiskPoint | null>(null);
 
-  const defaultCenter = useMemo(
-    () => ({
-      lat: currentGPS?.lat && !isNaN(currentGPS.lat) ? currentGPS.lat : 18.7904,
-      lng: currentGPS?.lng && !isNaN(currentGPS.lng) ? currentGPS.lng : 98.9853,
-    }),
-    [currentGPS]
-  );
+  // Free browsing mode state: when user zooms or pans, map stays where user wants until they click recenter
+  const [isFreeBrowsing, setIsFreeBrowsing] = useState<boolean>(false);
+  const isFreeBrowsingRef = useRef<boolean>(false);
+  const hasInitialCenteredRef = useRef<boolean>(false);
 
-  // Initialize Leaflet Map
+  // Initialize Leaflet Map once on mount
   useEffect(() => {
     if (!mapContainerRef.current) return;
     if (mapInstanceRef.current) return;
 
+    const initialLat = currentGPS?.lat && !isNaN(currentGPS.lat) ? currentGPS.lat : 18.7904;
+    const initialLng = currentGPS?.lng && !isNaN(currentGPS.lng) ? currentGPS.lng : 98.9853;
+
     const map = L.map(mapContainerRef.current, {
-      center: [defaultCenter.lat, defaultCenter.lng],
+      center: [initialLat, initialLng],
       zoom: 15,
       zoomControl: false,
       attributionControl: true,
     });
+
+    if (currentGPS?.lat && !isNaN(currentGPS.lat)) {
+      hasInitialCenteredRef.current = true;
+    }
 
     // Default Streets tile layer (OpenStreetMap)
     const tileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -194,11 +198,30 @@ const LeafletFieldMap: React.FC<LeafletMapProps> = ({
     userMarkerRef.current = userLayer;
     mapInstanceRef.current = map;
 
+    // Detect user pan / drag or zoom to activate free browsing mode without snapping back
+    const onUserInteraction = () => {
+      isFreeBrowsingRef.current = true;
+      setIsFreeBrowsing(true);
+    };
+
+    map.on('dragstart', onUserInteraction);
+    map.on('zoomstart', onUserInteraction);
+
     return () => {
+      map.off('dragstart', onUserInteraction);
+      map.off('zoomstart', onUserInteraction);
       map.remove();
       mapInstanceRef.current = null;
     };
-  }, [defaultCenter.lat, defaultCenter.lng]);
+  }, []); // Run ONLY once on mount
+
+  // Initial center when GPS first becomes available (if user hasn't browsed yet)
+  useEffect(() => {
+    if (!hasInitialCenteredRef.current && currentGPS?.lat && !isNaN(currentGPS.lat) && !isFreeBrowsingRef.current) {
+      hasInitialCenteredRef.current = true;
+      mapInstanceRef.current?.setView([currentGPS.lat, currentGPS.lng], 15);
+    }
+  }, [currentGPS]);
 
   // Update Tile Layer when mapType changes
   useEffect(() => {
@@ -330,18 +353,28 @@ const LeafletFieldMap: React.FC<LeafletMapProps> = ({
     });
   }, [points, onSelectPoint]);
 
-  // Zoom handlers
+  // Zoom handlers (activates free browsing mode so map does not snap back to user GPS)
   const handleZoomIn = () => {
+    isFreeBrowsingRef.current = true;
+    setIsFreeBrowsing(true);
     mapInstanceRef.current?.zoomIn();
   };
 
   const handleZoomOut = () => {
+    isFreeBrowsingRef.current = true;
+    setIsFreeBrowsing(true);
     mapInstanceRef.current?.zoomOut();
   };
 
+  // Recenter handler (called when user clicks the "ตำแหน่งปัจจุบัน" button to return and follow GPS)
   const handleRecenter = () => {
+    isFreeBrowsingRef.current = false;
+    setIsFreeBrowsing(false);
     if (currentGPS && typeof currentGPS.lat === 'number' && !isNaN(currentGPS.lat)) {
-      mapInstanceRef.current?.setView([currentGPS.lat, currentGPS.lng], 16, { animate: true });
+      mapInstanceRef.current?.flyTo([currentGPS.lat, currentGPS.lng], 16, {
+        animate: true,
+        duration: 0.8,
+      });
     }
   };
 
@@ -493,6 +526,21 @@ const LeafletFieldMap: React.FC<LeafletMapProps> = ({
         )}
       </div>
 
+      {/* Floating indicator when user has panned or zoomed away from live GPS */}
+      {isFreeBrowsing && (
+        <div className="absolute top-13 sm:top-14 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2 bg-slate-900/95 backdrop-blur-md px-3.5 py-1.5 rounded-full border border-blue-500/60 text-blue-200 shadow-2xl text-xs animate-in fade-in zoom-in-95 duration-200 pointer-events-auto">
+          <Navigation className="w-3.5 h-3.5 text-blue-400 animate-pulse shrink-0" />
+          <span className="font-medium whitespace-nowrap">โหมดเลื่อนดูอิสระ</span>
+          <button
+            type="button"
+            onClick={handleRecenter}
+            className="text-[11px] font-bold text-white bg-blue-600 hover:bg-blue-500 active:scale-95 px-2.5 py-0.5 rounded-full shadow transition-all whitespace-nowrap"
+          >
+            ดึงตำแหน่งฉัน
+          </button>
+        </div>
+      )}
+
       {/* Bottom Floating Action Controls */}
       <div className="absolute bottom-20 md:bottom-6 right-3 sm:right-4 flex flex-col gap-2.5 z-20">
         <button
@@ -508,10 +556,14 @@ const LeafletFieldMap: React.FC<LeafletMapProps> = ({
           type="button"
           onClick={handleRecenter}
           disabled={!currentGPS}
-          className="w-11 h-11 sm:w-12 sm:h-12 rounded-xl bg-slate-900/90 hover:bg-slate-800 text-blue-400 border border-slate-700 shadow-lg flex items-center justify-center active:scale-95 transition-all disabled:opacity-50"
-          title="จัดกึ่งกลางตำแหน่งปัจจุบัน"
+          className={`w-11 h-11 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center active:scale-95 transition-all shadow-xl border ${
+            isFreeBrowsing
+              ? 'bg-blue-600 hover:bg-blue-500 text-white border-blue-300 ring-4 ring-blue-500/40 shadow-blue-500/30'
+              : 'bg-slate-900/90 hover:bg-slate-800 text-blue-400 border-slate-700'
+          } disabled:opacity-50`}
+          title={isFreeBrowsing ? 'กดเพื่อดึงกลับมาที่ตำแหน่งปัจจุบันของฉัน' : 'ตำแหน่งปัจจุบันของฉัน'}
         >
-          <Navigation className="w-5 h-5 sm:w-6 sm:h-6" />
+          <Navigation className={`w-5 h-5 sm:w-6 sm:h-6 ${isFreeBrowsing ? 'animate-bounce' : ''}`} />
         </button>
       </div>
     </div>

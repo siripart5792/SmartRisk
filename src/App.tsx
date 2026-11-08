@@ -75,16 +75,20 @@ export default function App() {
   // Active View ('map' | 'radar' | 'list')
   const [activeView, setActiveView] = useState<'map' | 'radar' | 'list'>('map');
 
-  // GPS State
-  const [currentGPS, setCurrentGPS] = useState<GPSPosition | null>({
-    lat: 18.7915,
-    lng: 98.9860,
-    accuracy: 3.5,
-    heading: 45,
-    speed: 0,
-    altitude: 310,
-    timestamp: Date.now(),
+  // GPS State - Starts dynamic/cached, then immediately pulls real live location
+  const [currentGPS, setCurrentGPS] = useState<GPSPosition | null>(() => {
+    try {
+      const cached = localStorage.getItem('peagh_last_known_gps');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (parsed && typeof parsed.lat === 'number' && typeof parsed.lng === 'number') {
+          return parsed;
+        }
+      }
+    } catch {}
+    return null;
   });
+  const [isAcquiringGPS, setIsAcquiringGPS] = useState<boolean>(true);
 
   // Geofence Alerts
   const [activeAlerts, setActiveAlerts] = useState<GeofenceAlert[]>([]);
@@ -287,28 +291,54 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  // --- REAL-TIME GPS WATCHER ---
+  // --- REAL-TIME GPS WATCHER & IMMEDIATE FIX ON LAUNCH ---
   useEffect(() => {
-    if (typeof navigator === 'undefined' || !navigator.geolocation) return;
+    if (typeof navigator === 'undefined' || !navigator.geolocation) {
+      setIsAcquiringGPS(false);
+      return;
+    }
 
-    const watchId = navigator.geolocation.watchPosition(
-      (pos) => {
-        setCurrentGPS({
-          lat: pos.coords.latitude,
-          lng: pos.coords.longitude,
-          accuracy: pos.coords.accuracy,
-          heading: pos.coords.heading,
-          speed: pos.coords.speed,
-          altitude: pos.coords.altitude,
-          timestamp: pos.timestamp,
-        });
-      },
+    const handleGPSPosition = (pos: GeolocationPosition) => {
+      const newPos: GPSPosition = {
+        lat: pos.coords.latitude,
+        lng: pos.coords.longitude,
+        accuracy: pos.coords.accuracy,
+        heading: pos.coords.heading,
+        speed: pos.coords.speed,
+        altitude: pos.coords.altitude,
+        timestamp: pos.timestamp,
+      };
+      setCurrentGPS(newPos);
+      setIsAcquiringGPS(false);
+      try {
+        localStorage.setItem('peagh_last_known_gps', JSON.stringify(newPos));
+      } catch {}
+    };
+
+    // 1. Instant fix: Try cached or low-accuracy position for immediate response
+    navigator.geolocation.getCurrentPosition(
+      handleGPSPosition,
+      (err) => console.warn('Instant GPS attempt:', err.message),
+      { enableHighAccuracy: false, timeout: 3000, maximumAge: 60000 }
+    );
+
+    // 2. High-precision fix: Request high accuracy GPS immediately upon entry
+    navigator.geolocation.getCurrentPosition(
+      handleGPSPosition,
       (err) => {
-        console.warn('Geolocation error (using fallback position):', err.message);
+        console.warn('High precision initial GPS:', err.message);
+        setIsAcquiringGPS(false);
       },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    );
+
+    // 3. Continuous real-time movement watcher
+    const watchId = navigator.geolocation.watchPosition(
+      handleGPSPosition,
+      (err) => console.warn('Geolocation watch error:', err.message),
       {
         enableHighAccuracy: true,
-        timeout: 10000,
+        timeout: 12000,
         maximumAge: 2000,
       }
     );
@@ -715,6 +745,7 @@ export default function App() {
               alertRadiusMeters={settings.alertRadiusMeters}
               onSwitchToRadar={() => handleViewChange('radar')}
               onTopicChange={handleTopicOrNavAction}
+              isAcquiringGPS={isAcquiringGPS}
             />
           )}
 

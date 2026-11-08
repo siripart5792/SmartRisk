@@ -50,6 +50,7 @@ interface InteractiveMapProps {
   alertRadiusMeters: number;
   onSwitchToRadar?: () => void;
   onTopicChange?: () => void;
+  isAcquiringGPS?: boolean;
 }
 
 // Icon mapper for risk categories
@@ -134,6 +135,7 @@ interface LeafletMapProps {
   onRejectPoint?: (p: RiskPoint) => void;
   onSwitchToGoogleMaps?: () => void;
   onSwitchToRadar?: () => void;
+  isAcquiringGPS?: boolean;
 }
 
 const LeafletFieldMap: React.FC<LeafletMapProps> = ({
@@ -147,6 +149,7 @@ const LeafletFieldMap: React.FC<LeafletMapProps> = ({
   onRejectPoint,
   onSwitchToGoogleMaps,
   onSwitchToRadar,
+  isAcquiringGPS,
 }) => {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
@@ -161,25 +164,26 @@ const LeafletFieldMap: React.FC<LeafletMapProps> = ({
   // Free browsing mode state: when user zooms or pans, map stays where user wants until they click recenter
   const [isFreeBrowsing, setIsFreeBrowsing] = useState<boolean>(false);
   const isFreeBrowsingRef = useRef<boolean>(false);
-  const hasInitialCenteredRef = useRef<boolean>(false);
+  const hasCenteredLiveGPSRef = useRef<boolean>(false);
 
   // Initialize Leaflet Map once on mount
   useEffect(() => {
     if (!mapContainerRef.current) return;
     if (mapInstanceRef.current) return;
 
-    const initialLat = currentGPS?.lat && !isNaN(currentGPS.lat) ? currentGPS.lat : 18.7904;
-    const initialLng = currentGPS?.lng && !isNaN(currentGPS.lng) ? currentGPS.lng : 98.9853;
+    const hasValidGPS = currentGPS?.lat && !isNaN(currentGPS.lat);
+    const initialLat = hasValidGPS ? currentGPS.lat : 13.7563;
+    const initialLng = hasValidGPS ? currentGPS.lng : 100.5018;
 
     const map = L.map(mapContainerRef.current, {
       center: [initialLat, initialLng],
-      zoom: 15,
+      zoom: hasValidGPS ? 16 : 14,
       zoomControl: false,
       attributionControl: true,
     });
 
-    if (currentGPS?.lat && !isNaN(currentGPS.lat)) {
-      hasInitialCenteredRef.current = true;
+    if (hasValidGPS) {
+      hasCenteredLiveGPSRef.current = true;
     }
 
     // Default Streets tile layer (OpenStreetMap)
@@ -215,11 +219,19 @@ const LeafletFieldMap: React.FC<LeafletMapProps> = ({
     };
   }, []); // Run ONLY once on mount
 
-  // Initial center when GPS first becomes available (if user hasn't browsed yet)
+  // Automatically bring/fly the map directly to user's real GPS position upon entering the app
   useEffect(() => {
-    if (!hasInitialCenteredRef.current && currentGPS?.lat && !isNaN(currentGPS.lat) && !isFreeBrowsingRef.current) {
-      hasInitialCenteredRef.current = true;
-      mapInstanceRef.current?.setView([currentGPS.lat, currentGPS.lng], 15);
+    if (!mapInstanceRef.current || !currentGPS || typeof currentGPS.lat !== 'number' || isNaN(currentGPS.lat)) {
+      return;
+    }
+
+    // As soon as live GPS arrives on launch, bring the view directly to current location
+    if (!hasCenteredLiveGPSRef.current && !isFreeBrowsingRef.current) {
+      hasCenteredLiveGPSRef.current = true;
+      mapInstanceRef.current.flyTo([currentGPS.lat, currentGPS.lng], 16, {
+        animate: true,
+        duration: 0.9,
+      });
     }
   }, [currentGPS]);
 
@@ -526,6 +538,14 @@ const LeafletFieldMap: React.FC<LeafletMapProps> = ({
         )}
       </div>
 
+      {/* Floating indicator when acquiring GPS on app launch */}
+      {isAcquiringGPS && !currentGPS && (
+        <div className="absolute top-13 sm:top-14 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2 bg-slate-900/95 backdrop-blur-md px-3.5 py-1.5 rounded-full border border-blue-500/60 text-blue-300 shadow-2xl text-xs animate-in fade-in zoom-in-95 duration-200 pointer-events-auto">
+          <div className="w-3.5 h-3.5 rounded-full border-2 border-blue-400 border-t-transparent animate-spin shrink-0" />
+          <span className="font-medium whitespace-nowrap">กำลังดึงตำแหน่งปัจจุบันของคุณ...</span>
+        </div>
+      )}
+
       {/* Floating indicator when user has panned or zoomed away from live GPS */}
       {isFreeBrowsing && (
         <div className="absolute top-13 sm:top-14 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2 bg-slate-900/95 backdrop-blur-md px-3.5 py-1.5 rounded-full border border-blue-500/60 text-blue-200 shadow-2xl text-xs animate-in fade-in zoom-in-95 duration-200 pointer-events-auto">
@@ -586,6 +606,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
   alertRadiusMeters,
   onSwitchToRadar,
   onTopicChange,
+  isAcquiringGPS,
 }) => {
   const [filterSeverity, setFilterSeverity] = useState<string>('all');
   const [mapEngine, setMapEngine] = useState<'real_map' | 'google_maps'>('real_map');
@@ -699,6 +720,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
             onRejectPoint={onRejectPoint}
             onSwitchToGoogleMaps={() => setMapEngine('google_maps')}
             onSwitchToRadar={onSwitchToRadar}
+            isAcquiringGPS={isAcquiringGPS}
           />
         ) : (
           <APIProvider
@@ -760,6 +782,15 @@ const GoogleMapsLayer: React.FC<{
   const isLoaded = useApiIsLoaded();
   const map = useMap();
   const [selectedPoint, setSelectedPoint] = useState<RiskPoint | null>(null);
+  const hasCenteredGoogleRef = useRef(false);
+
+  useEffect(() => {
+    if (map && currentGPS && !isNaN(currentGPS.lat) && !hasCenteredGoogleRef.current) {
+      hasCenteredGoogleRef.current = true;
+      map.panTo({ lat: currentGPS.lat, lng: currentGPS.lng });
+      map.setZoom(16);
+    }
+  }, [map, currentGPS]);
 
   if (!isLoaded || !map) return null;
 

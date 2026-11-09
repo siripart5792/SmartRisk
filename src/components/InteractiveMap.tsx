@@ -167,6 +167,8 @@ const LeafletFieldMap: React.FC<LeafletMapProps> = ({
   const isFreeBrowsingRef = useRef<boolean>(false);
   const hasCenteredLiveGPSRef = useRef<boolean>(false);
   const lastFollowedPosRef = useRef<{ lat: number; lng: number } | null>(null);
+  const isProgrammaticMoveRef = useRef<boolean>(false);
+  const [showTrackingToast, setShowTrackingToast] = useState<boolean>(false);
 
   // Initialize Leaflet Map once on mount
   useEffect(() => {
@@ -205,18 +207,32 @@ const LeafletFieldMap: React.FC<LeafletMapProps> = ({
     userMarkerRef.current = userLayer;
     mapInstanceRef.current = map;
 
-    // Detect user pan / drag or zoom to activate free browsing mode without snapping back
+    // Detect user manual pan / drag or pinch zoom to switch to free browsing mode
     const onUserInteraction = () => {
+      if (isProgrammaticMoveRef.current) return;
       isFreeBrowsingRef.current = true;
       setIsFreeBrowsing(true);
+      setShowTrackingToast(false);
     };
 
     map.on('dragstart', onUserInteraction);
-    map.on('zoomstart', onUserInteraction);
+
+    // Track user mouse wheel or two-finger pinch on container (ignores programmatic flyTo)
+    const container = map.getContainer();
+    const onWheel = () => onUserInteraction();
+    const onTouchStart = (e: TouchEvent) => {
+      if (e.touches && e.touches.length >= 2) {
+        onUserInteraction();
+      }
+    };
+
+    container.addEventListener('wheel', onWheel, { passive: true });
+    container.addEventListener('touchstart', onTouchStart, { passive: true });
 
     return () => {
       map.off('dragstart', onUserInteraction);
-      map.off('zoomstart', onUserInteraction);
+      container.removeEventListener('wheel', onWheel);
+      container.removeEventListener('touchstart', onTouchStart);
       map.remove();
       mapInstanceRef.current = null;
     };
@@ -232,9 +248,15 @@ const LeafletFieldMap: React.FC<LeafletMapProps> = ({
     if (!hasCenteredLiveGPSRef.current && !isFreeBrowsingRef.current) {
       hasCenteredLiveGPSRef.current = true;
       lastFollowedPosRef.current = { lat: currentGPS.lat, lng: currentGPS.lng };
+      isProgrammaticMoveRef.current = true;
       mapInstanceRef.current.flyTo([currentGPS.lat, currentGPS.lng], 16, {
         animate: true,
         duration: 0.9,
+      });
+      mapInstanceRef.current.once('moveend', () => {
+        setTimeout(() => {
+          isProgrammaticMoveRef.current = false;
+        }, 150);
       });
       return;
     }
@@ -246,13 +268,19 @@ const LeafletFieldMap: React.FC<LeafletMapProps> = ({
         ? calculateDistanceMeters(last.lat, last.lng, currentGPS.lat, currentGPS.lng)
         : 999;
 
-      // When moved 2 meters or more, smoothly pan camera to focus on new moving position
-      if (movedMeters >= 2) {
+      // When moved 1.5 meters or more, smoothly pan camera to focus on new moving position
+      if (movedMeters >= 1.5) {
         lastFollowedPosRef.current = { lat: currentGPS.lat, lng: currentGPS.lng };
+        isProgrammaticMoveRef.current = true;
         mapInstanceRef.current.panTo([currentGPS.lat, currentGPS.lng], {
           animate: true,
-          duration: 0.8,
+          duration: 0.7,
           easeLinearity: 0.25,
+        });
+        mapInstanceRef.current.once('moveend', () => {
+          setTimeout(() => {
+            isProgrammaticMoveRef.current = false;
+          }, 100);
         });
       }
     }
@@ -401,17 +429,39 @@ const LeafletFieldMap: React.FC<LeafletMapProps> = ({
     mapInstanceRef.current?.zoomOut();
   };
 
-  // Recenter handler (called when user clicks the "ตำแหน่งปัจจุบัน" button to return and follow GPS)
+  // Recenter handler (called when user clicks "ดึงตำแหน่งฉัน" / "ตำแหน่งปัจจุบันของฉัน")
   const handleRecenter = () => {
+    isProgrammaticMoveRef.current = true;
     isFreeBrowsingRef.current = false;
     setIsFreeBrowsing(false);
+    setShowTrackingToast(true);
+
     if (currentGPS && typeof currentGPS.lat === 'number' && !isNaN(currentGPS.lat)) {
       lastFollowedPosRef.current = { lat: currentGPS.lat, lng: currentGPS.lng };
-      mapInstanceRef.current?.flyTo([currentGPS.lat, currentGPS.lng], 16, {
-        animate: true,
-        duration: 0.8,
-      });
+      const map = mapInstanceRef.current;
+      if (map) {
+        map.flyTo([currentGPS.lat, currentGPS.lng], 16, {
+          animate: true,
+          duration: 0.8,
+        });
+
+        map.once('moveend', () => {
+          setTimeout(() => {
+            isProgrammaticMoveRef.current = false;
+            isFreeBrowsingRef.current = false;
+            setIsFreeBrowsing(false);
+          }, 150);
+        });
+      }
+    } else {
+      setTimeout(() => {
+        isProgrammaticMoveRef.current = false;
+      }, 300);
     }
+
+    setTimeout(() => {
+      setShowTrackingToast(false);
+    }, 2500);
   };
 
   return (
@@ -570,6 +620,14 @@ const LeafletFieldMap: React.FC<LeafletMapProps> = ({
         </div>
       )}
 
+      {/* Toast feedback when recentering to current location and resuming tracking */}
+      {showTrackingToast && (
+        <div className="absolute top-13 sm:top-14 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2 bg-slate-900/95 backdrop-blur-md px-3.5 py-1.5 rounded-full border border-emerald-500/60 text-emerald-300 shadow-2xl text-xs animate-in fade-in zoom-in-95 duration-200 pointer-events-auto">
+          <Navigation className="w-3.5 h-3.5 text-emerald-400 animate-pulse shrink-0" />
+          <span className="font-semibold whitespace-nowrap">กลับมาโฟกัสตามตำแหน่งปัจจุบันแล้ว</span>
+        </div>
+      )}
+
       {/* Floating indicator when user has panned or zoomed away from live GPS */}
       {isFreeBrowsing && (
         <div className="absolute top-13 sm:top-14 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2 bg-slate-900/95 backdrop-blur-md px-3.5 py-1.5 rounded-full border border-blue-500/60 text-blue-200 shadow-2xl text-xs animate-in fade-in zoom-in-95 duration-200 pointer-events-auto">
@@ -605,9 +663,9 @@ const LeafletFieldMap: React.FC<LeafletMapProps> = ({
               ? 'bg-blue-600 hover:bg-blue-500 text-white border-blue-300 ring-4 ring-blue-500/40 shadow-blue-500/30'
               : 'bg-slate-900/90 hover:bg-slate-800 text-blue-400 border-slate-700'
           } disabled:opacity-50`}
-          title={isFreeBrowsing ? 'กดเพื่อดึงกลับมาที่ตำแหน่งปัจจุบันของฉัน' : 'ตำแหน่งปัจจุบันของฉัน'}
+          title={isFreeBrowsing ? 'กดเพื่อดึงกลับมาโฟกัสตามตำแหน่งปัจจุบัน' : 'กำลังโฟกัสตามตำแหน่งปัจจุบัน'}
         >
-          <Navigation className={`w-5 h-5 sm:w-6 sm:h-6 ${isFreeBrowsing ? 'animate-bounce' : ''}`} />
+          <Navigation className={`w-5 h-5 sm:w-6 sm:h-6 ${isFreeBrowsing ? 'animate-bounce text-white' : 'text-blue-400'}`} />
         </button>
       </div>
     </div>

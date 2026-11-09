@@ -37,6 +37,7 @@ import {
   Globe,
 } from 'lucide-react';
 import { RiskPoint, GPSPosition, RiskSeverity, RiskCategory, UserRole } from '../types';
+import { calculateDistanceMeters } from '../services/geofence';
 
 interface InteractiveMapProps {
   apiKey: string;
@@ -165,6 +166,7 @@ const LeafletFieldMap: React.FC<LeafletMapProps> = ({
   const [isFreeBrowsing, setIsFreeBrowsing] = useState<boolean>(false);
   const isFreeBrowsingRef = useRef<boolean>(false);
   const hasCenteredLiveGPSRef = useRef<boolean>(false);
+  const lastFollowedPosRef = useRef<{ lat: number; lng: number } | null>(null);
 
   // Initialize Leaflet Map once on mount
   useEffect(() => {
@@ -184,6 +186,7 @@ const LeafletFieldMap: React.FC<LeafletMapProps> = ({
 
     if (hasValidGPS) {
       hasCenteredLiveGPSRef.current = true;
+      lastFollowedPosRef.current = { lat: currentGPS.lat, lng: currentGPS.lng };
     }
 
     // Default Streets tile layer (OpenStreetMap)
@@ -219,19 +222,39 @@ const LeafletFieldMap: React.FC<LeafletMapProps> = ({
     };
   }, []); // Run ONLY once on mount
 
-  // Automatically bring/fly the map directly to user's real GPS position upon entering the app
+  // Automatically center on entry, AND continuously follow/focus screen as user moves
   useEffect(() => {
     if (!mapInstanceRef.current || !currentGPS || typeof currentGPS.lat !== 'number' || isNaN(currentGPS.lat)) {
       return;
     }
 
-    // As soon as live GPS arrives on launch, bring the view directly to current location
+    // 1. Initial GPS lock upon entry: fly directly to user's real location
     if (!hasCenteredLiveGPSRef.current && !isFreeBrowsingRef.current) {
       hasCenteredLiveGPSRef.current = true;
+      lastFollowedPosRef.current = { lat: currentGPS.lat, lng: currentGPS.lng };
       mapInstanceRef.current.flyTo([currentGPS.lat, currentGPS.lng], 16, {
         animate: true,
         duration: 0.9,
       });
+      return;
+    }
+
+    // 2. Active Movement Tracking: When position moves, smoothly focus camera to follow along
+    if (!isFreeBrowsingRef.current) {
+      const last = lastFollowedPosRef.current;
+      const movedMeters = last
+        ? calculateDistanceMeters(last.lat, last.lng, currentGPS.lat, currentGPS.lng)
+        : 999;
+
+      // When moved 2 meters or more, smoothly pan camera to focus on new moving position
+      if (movedMeters >= 2) {
+        lastFollowedPosRef.current = { lat: currentGPS.lat, lng: currentGPS.lng };
+        mapInstanceRef.current.panTo([currentGPS.lat, currentGPS.lng], {
+          animate: true,
+          duration: 0.8,
+          easeLinearity: 0.25,
+        });
+      }
     }
   }, [currentGPS]);
 
@@ -383,6 +406,7 @@ const LeafletFieldMap: React.FC<LeafletMapProps> = ({
     isFreeBrowsingRef.current = false;
     setIsFreeBrowsing(false);
     if (currentGPS && typeof currentGPS.lat === 'number' && !isNaN(currentGPS.lat)) {
+      lastFollowedPosRef.current = { lat: currentGPS.lat, lng: currentGPS.lng };
       mapInstanceRef.current?.flyTo([currentGPS.lat, currentGPS.lng], 16, {
         animate: true,
         duration: 0.8,
@@ -783,12 +807,25 @@ const GoogleMapsLayer: React.FC<{
   const map = useMap();
   const [selectedPoint, setSelectedPoint] = useState<RiskPoint | null>(null);
   const hasCenteredGoogleRef = useRef(false);
+  const lastGooglePosRef = useRef<{ lat: number; lng: number } | null>(null);
 
   useEffect(() => {
-    if (map && currentGPS && !isNaN(currentGPS.lat) && !hasCenteredGoogleRef.current) {
+    if (!map || !currentGPS || isNaN(currentGPS.lat)) return;
+
+    if (!hasCenteredGoogleRef.current) {
       hasCenteredGoogleRef.current = true;
+      lastGooglePosRef.current = { lat: currentGPS.lat, lng: currentGPS.lng };
       map.panTo({ lat: currentGPS.lat, lng: currentGPS.lng });
       map.setZoom(16);
+    } else {
+      const last = lastGooglePosRef.current;
+      const movedMeters = last
+        ? calculateDistanceMeters(last.lat, last.lng, currentGPS.lat, currentGPS.lng)
+        : 999;
+      if (movedMeters >= 2) {
+        lastGooglePosRef.current = { lat: currentGPS.lat, lng: currentGPS.lng };
+        map.panTo({ lat: currentGPS.lat, lng: currentGPS.lng });
+      }
     }
   }, [map, currentGPS]);
 

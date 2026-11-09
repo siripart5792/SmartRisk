@@ -38,6 +38,7 @@ import {
 } from 'lucide-react';
 import { RiskPoint, GPSPosition, RiskSeverity, RiskCategory, UserRole } from '../types';
 import { calculateDistanceMeters } from '../services/geofence';
+import { isRiskPointApproved } from '../services/googleSheets';
 
 interface InteractiveMapProps {
   apiKey: string;
@@ -387,14 +388,39 @@ const LeafletFieldMap: React.FC<LeafletMapProps> = ({
       const color = getSeverityColor(point?.severity);
       const svgIcon = getCategorySvg(point?.category);
       const isHigh = point?.severity === 'high' || (point?.severity as string) === 'critical';
+      const isApproved = isRiskPointApproved(point);
+      const isPending = !isApproved;
 
       const markerHtml = `
-        <div style="position:relative;display:flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:50%;background:${color?.bg || '#dc2626'};border:2.5px solid white;box-shadow:0 4px 10px rgba(0,0,0,0.5);cursor:pointer;transition:transform 0.15s ease;">
+        <div style="position:relative;display:flex;align-items:center;justify-content:center;width:38px;height:38px;border-radius:50%;background:${color?.bg || '#dc2626'};border:${isPending ? '2.5px dashed #fbbf24' : '2.5px solid white'};box-shadow:${isPending ? '0 0 0 2px rgba(245,158,11,0.5), 0 4px 10px rgba(0,0,0,0.5)' : '0 4px 10px rgba(0,0,0,0.5)'};cursor:pointer;transition:transform 0.15s ease;">
           ${svgIcon}
           ${
             isHigh
               ? `<div style="position:absolute;inset:-4px;border-radius:50%;background:${color?.bg || '#dc2626'};opacity:0.4;animation:ping 2s cubic-bezier(0,0,0.2,1) infinite;"></div>`
               : ''
+          }
+          ${
+            isPending
+              ? `
+              <!-- Top-right Amber Clock Badge -->
+              <div style="position:absolute;top:-5px;right:-5px;width:18px;height:18px;border-radius:50%;background:#d97706;border:1.5px solid white;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 4px rgba(0,0,0,0.5);z-index:20;" title="ยังไม่ผ่านการอนุมัติ (รอตรวจสอบ)">
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+                </svg>
+              </div>
+              <!-- Bottom Pill Badge "รออนุมัติ" -->
+              <div style="position:absolute;bottom:-17px;left:50%;transform:translateX(-50%);background:#92400e;color:#fef3c7;font-size:9px;font-weight:700;padding:1px 5px;border-radius:9999px;border:1px solid #fde68a;white-space:nowrap;box-shadow:0 2px 5px rgba(0,0,0,0.6);letter-spacing:0.3px;pointer-events:none;z-index:20;">
+                รออนุมัติ
+              </div>
+              `
+              : `
+              <!-- Top-right Green Checkmark for Approved Points -->
+              <div style="position:absolute;top:-4px;right:-4px;width:16px;height:16px;border-radius:50%;background:#16a34a;border:1.5px solid white;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 3px rgba(0,0,0,0.4);z-index:20;" title="ผ่านการอนุมัติยืนยันแล้ว">
+                <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="20 6 9 17 4 12"/>
+                </svg>
+              </div>
+              `
           }
         </div>
       `;
@@ -402,8 +428,8 @@ const LeafletFieldMap: React.FC<LeafletMapProps> = ({
       const icon = L.divIcon({
         html: markerHtml,
         className: 'custom-risk-icon',
-        iconSize: [36, 36],
-        iconAnchor: [18, 18],
+        iconSize: [44, 48],
+        iconAnchor: [22, 22],
       });
 
       const marker = L.marker([point.lat, point.lng], { icon });
@@ -521,6 +547,17 @@ const LeafletFieldMap: React.FC<LeafletMapProps> = ({
                 <span className="px-2 py-0.5 rounded text-[10px] bg-slate-800 text-slate-300 font-mono">
                   {selectedPoint.id}
                 </span>
+                {!isRiskPointApproved(selectedPoint) ? (
+                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/25 text-amber-300 border border-amber-500/50 flex items-center gap-1 shadow-sm">
+                    <Clock className="w-3 h-3 text-amber-400" />
+                    <span>ยังไม่อนุมัติ (รอตรวจ)</span>
+                  </span>
+                ) : (
+                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 flex items-center gap-1 shadow-sm">
+                    <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                    <span>อนุมัติยืนยันแล้ว</span>
+                  </span>
+                )}
               </div>
               <h3 className="font-bold text-white text-sm sm:text-base leading-snug">{selectedPoint.title}</h3>
             </div>
@@ -532,6 +569,16 @@ const LeafletFieldMap: React.FC<LeafletMapProps> = ({
               ✕
             </button>
           </div>
+
+          {!isRiskPointApproved(selectedPoint) && (
+            <div className="my-2 p-2.5 rounded-xl bg-amber-950/70 border border-amber-500/50 text-amber-200 text-[11px] flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+              <div>
+                <span className="font-bold text-amber-300">ยังไม่ได้รับการอนุมัติ: </span>
+                <span>จุดเสี่ยงนี้ได้รับการรายงานเข้ามาใหม่ และอยู่ระหว่างรอการตรวจสอบยืนยันจากผู้ดูแลระบบ</span>
+              </div>
+            </div>
+          )}
 
           <p className="text-slate-300 py-2.5 leading-relaxed text-[11px]">
             {selectedPoint.description}
@@ -545,7 +592,7 @@ const LeafletFieldMap: React.FC<LeafletMapProps> = ({
           </div>
 
           {/* Admin Moderation Actions */}
-          {currentUserRole === 'admin' && selectedPoint.status === 'pending_review' && (
+          {currentUserRole === 'admin' && !isRiskPointApproved(selectedPoint) && (
             <div className="flex items-center gap-2 pt-2.5">
               <button
                 type="button"
@@ -720,6 +767,9 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
       return false;
     }
     if (filterSeverity === 'all') return true;
+    if (filterSeverity === 'pending') {
+      return !isRiskPointApproved(p);
+    }
     if (filterSeverity === 'high') {
       return p.severity === 'high' || (p.severity as string) === 'critical';
     }
@@ -743,6 +793,20 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
           }`}
         >
           ทั้งหมด ({points.length})
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setFilterSeverity('pending');
+            onTopicChange?.();
+          }}
+          className={`px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-full text-[11px] sm:text-xs font-semibold whitespace-nowrap shadow-md backdrop-blur-md transition-colors flex items-center gap-1 ${
+            filterSeverity === 'pending'
+              ? 'bg-amber-600 text-white border border-amber-400'
+              : 'bg-slate-900/80 text-amber-300 border border-amber-500/40 hover:bg-slate-800/80'
+          }`}
+        >
+          <span>⏳ รออนุมัติ ({points.filter((p) => !isRiskPointApproved(p)).length})</span>
         </button>
         <button
           type="button"
@@ -900,6 +964,9 @@ const GoogleMapsLayer: React.FC<{
       {points.map((p) => {
         const color = getSeverityColor(p?.severity);
         const Icon = getCategoryIcon(p?.category);
+        const isApproved = isRiskPointApproved(p);
+        const isPending = !isApproved;
+
         return (
           <AdvancedMarker
             key={p.id}
@@ -910,10 +977,32 @@ const GoogleMapsLayer: React.FC<{
             }}
           >
             <div
-              className="flex items-center justify-center w-8 h-8 rounded-full border-2 border-white shadow-lg cursor-pointer"
+              className={`relative flex items-center justify-center w-9 h-9 rounded-full border-2 shadow-lg cursor-pointer ${
+                isPending ? 'border-dashed border-amber-300 ring-2 ring-amber-500/40' : 'border-white'
+              }`}
               style={{ backgroundColor: color?.bg || '#dc2626' }}
             >
               <Icon className="w-4 h-4 text-white" />
+              {isPending ? (
+                <>
+                  <div
+                    className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-amber-600 border border-white flex items-center justify-center text-white shadow font-bold text-[9px]"
+                    title="ยังไม่ผ่านการอนุมัติ (รอตรวจสอบ)"
+                  >
+                    ⏳
+                  </div>
+                  <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 bg-amber-800 text-amber-100 text-[8px] font-bold px-1 py-0.5 rounded border border-amber-300 whitespace-nowrap shadow pointer-events-none">
+                    รออนุมัติ
+                  </div>
+                </>
+              ) : (
+                <div
+                  className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-emerald-600 border border-white flex items-center justify-center text-white shadow text-[8px]"
+                  title="ผ่านการอนุมัติแล้ว"
+                >
+                  ✓
+                </div>
+              )}
             </div>
           </AdvancedMarker>
         );
@@ -925,9 +1014,26 @@ const GoogleMapsLayer: React.FC<{
           onCloseClick={() => setSelectedPoint(null)}
         >
           <div className="p-1 max-w-[240px] text-xs text-slate-800 space-y-1.5">
+            <div className="flex items-center gap-1 flex-wrap">
+              <span
+                className="px-1.5 py-0.2 rounded text-[9px] font-bold text-white"
+                style={{ backgroundColor: getSeverityColor(selectedPoint.severity)?.bg || '#dc2626' }}
+              >
+                {getSeverityColor(selectedPoint.severity)?.name}
+              </span>
+              {!isRiskPointApproved(selectedPoint) ? (
+                <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-amber-100 text-amber-800 border border-amber-300">
+                  ⏳ ยังไม่อนุมัติ (รอตรวจ)
+                </span>
+              ) : (
+                <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                  ✓ อนุมัติแล้ว
+                </span>
+              )}
+            </div>
             <h4 className="font-bold text-slate-900">{selectedPoint.title}</h4>
             <p className="text-slate-600 line-clamp-2">{selectedPoint.description}</p>
-            {currentUserRole === 'admin' && selectedPoint.status === 'pending_review' && (
+            {currentUserRole === 'admin' && !isRiskPointApproved(selectedPoint) && (
               <div className="flex gap-1 pt-1">
                 <button
                   onClick={() => {

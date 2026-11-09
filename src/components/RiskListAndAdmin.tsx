@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { RiskPoint, GPSPosition, UserRole, RiskStatus } from '../types';
 import { calculateDistanceMeters } from '../services/geofence';
+import { isRiskPointApproved } from '../services/googleSheets';
 
 interface RiskListProps {
   points: RiskPoint[];
@@ -57,7 +58,15 @@ export const RiskListAndAdmin: React.FC<RiskListProps> = ({
         p.reporterName.toLowerCase().includes(searchTerm.toLowerCase()) ||
         p.id.toLowerCase().includes(searchTerm.toLowerCase());
 
-      const matchStatus = statusFilter === 'all' || p.status === statusFilter;
+      let matchStatus = true;
+      if (statusFilter === 'pending_review') {
+        matchStatus = !isRiskPointApproved(p);
+      } else if (statusFilter === 'approved') {
+        matchStatus = isRiskPointApproved(p);
+      } else if (statusFilter !== 'all') {
+        matchStatus = p.status === statusFilter;
+      }
+
       const matchCat = categoryFilter === 'all' || p.category === categoryFilter;
 
       return matchSearch && matchStatus && matchCat;
@@ -163,7 +172,7 @@ export const RiskListAndAdmin: React.FC<RiskListProps> = ({
                   : 'bg-slate-900 text-amber-400 hover:text-white'
               }`}
             >
-              รอตรวจ ({points.filter((p) => p.status === 'pending_review').length})
+              รอตรวจ ({points.filter((p) => !isRiskPointApproved(p)).length})
             </button>
             <button
               onClick={() => {
@@ -176,7 +185,7 @@ export const RiskListAndAdmin: React.FC<RiskListProps> = ({
                   : 'bg-slate-900 text-emerald-400 hover:text-white'
               }`}
             >
-              อนุมัติแล้ว ({points.filter((p) => p.status === 'approved').length})
+              อนุมัติแล้ว ({points.filter((p) => isRiskPointApproved(p)).length})
             </button>
           </div>
         </div>
@@ -225,6 +234,12 @@ export const RiskListAndAdmin: React.FC<RiskListProps> = ({
                       <span className="font-mono text-slate-500">{point.id}</span>
                       <span>•</span>
                       <span>{new Date(point.createdAt).toLocaleString('th-TH')}</span>
+                      <span>•</span>
+                      {isRiskPointApproved(point) ? (
+                        <span className="text-[10px] text-emerald-400 font-medium">✓ อนุมัติแล้ว</span>
+                      ) : (
+                        <span className="text-[10px] text-amber-400 font-medium">⏳ รอตรวจ</span>
+                      )}
                     </div>
                   </div>
 
@@ -265,7 +280,7 @@ export const RiskListAndAdmin: React.FC<RiskListProps> = ({
                     {/* Admin Moderation Controls */}
                     {currentUserRole === 'admin' && (
                       <>
-                        {point.status === 'pending_review' && (
+                        {!isRiskPointApproved(point) && (
                           <>
                             <button
                               onClick={() => onApprovePoint(point)}

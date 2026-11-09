@@ -30,12 +30,94 @@ const SEVERITY_NAMES: Record<RiskSeverity, string> = {
   low: 'ต่ำ/เฝ้าระวัง',
 };
 
-const STATUS_NAMES: Record<RiskStatus, string> = {
+export const STATUS_NAMES: Record<RiskStatus, string> = {
   pending_review: 'รอตรวจสอบ',
   approved: 'อนุมัติ/ยืนยันแล้ว',
   resolved: 'แก้ไขแล้ว',
   rejected: 'ไม่อนุมัติ',
 };
+
+/**
+ * ตรวจสอบและแปลงสถานะจาก Google Sheets (ทั้งภาษาไทยและอังกฤษ) ให้เป็น RiskStatus ที่ถูกต้อง
+ * - หากข้อความมีคำว่า "อนุมัติ" (ที่ไม่ใช่ "ไม่อนุมัติ") หรือ "ยืนยันแล้ว" หรือ "ยืนยัน" ให้ถือว่าผ่านการอนุมัติ (approved)
+ * - หากข้อความมีคำว่า "ไม่อนุมัติ" หรือ "ปฏิเสธ" ให้เป็น rejected
+ * - หากมีคำว่า "แก้ไขแล้ว" หรือ "ดำเนินการแล้ว" ให้เป็น resolved
+ * - นอกนั้นเป็น pending_review (รอตรวจสอบ)
+ */
+export function normalizeRiskStatus(rawStatus: any): RiskStatus {
+  if (rawStatus === null || rawStatus === undefined) return 'pending_review';
+  const str = String(rawStatus).trim().toLowerCase();
+  if (!str) return 'pending_review';
+
+  // 1. ตรวจสอบปฏิเสธ/ไม่อนุมัติ ก่อน (เพราะมีคำว่า 'อนุมัติ' แฝงอยู่)
+  if (
+    str.includes('ไม่อนุมัติ') ||
+    str.includes('ปฏิเสธ') ||
+    str === 'rejected' ||
+    str === 'reject'
+  ) {
+    return 'rejected';
+  }
+
+  // 2. ตรวจสอบแก้ไขแล้ว/เสร็จสิ้น
+  if (
+    str.includes('แก้ไขแล้ว') ||
+    str.includes('ดำเนินการแล้ว') ||
+    str.includes('เสร็จสิ้น') ||
+    str.includes('เรียบร้อย') ||
+    str === 'resolved'
+  ) {
+    return 'resolved';
+  }
+
+  // 3. ตรวจสอบการอนุมัติ/ยืนยัน (ครอบคลุม อนุมัติ, ยืนยันแล้ว, อนุมัติแล้ว, อนุมัติ/ยืนยันแล้ว, ผ่านการอนุมัติ, verified, approved)
+  if (
+    str.includes('อนุมัติ') ||
+    str.includes('ยืนยัน') ||
+    str.includes('ผ่าน') ||
+    str === 'approved' ||
+    str === 'approve' ||
+    str === 'verified' ||
+    str === 'yes' ||
+    str === 'true' ||
+    str === '1'
+  ) {
+    return 'approved';
+  }
+
+  // 4. รอตรวจสอบ / รออนุมัติ
+  if (
+    str.includes('รอ') ||
+    str.includes('ตรวจ') ||
+    str === 'pending_review' ||
+    str === 'pending'
+  ) {
+    return 'pending_review';
+  }
+
+  // 5. เทียบตรงตัวกับ STATUS_NAMES
+  for (const [key, val] of Object.entries(STATUS_NAMES)) {
+    if (val.toLowerCase() === str || key.toLowerCase() === str) {
+      return key as RiskStatus;
+    }
+  }
+
+  return 'pending_review';
+}
+
+/**
+ * ฟังก์ชันช่วยตรวจสอบว่าจุดเสี่ยงนั้น "ผ่านการอนุมัติยืนยันแล้ว" หรือไม่
+ * เพื่อนำไปแสดงผลสัญลักษณ์ปกติบนแผนที่และเรดาร์
+ */
+export function isRiskPointApproved(pointOrStatus: any): boolean {
+  if (!pointOrStatus) return false;
+  const statusVal =
+    typeof pointOrStatus === 'object' && pointOrStatus !== null
+      ? pointOrStatus.status
+      : pointOrStatus;
+  const normalized = normalizeRiskStatus(statusVal);
+  return normalized === 'approved' || normalized === 'resolved';
+}
 
 export const SHEET_HEADERS = [
   'รหัสจุดเสี่ยง (ID)',
@@ -250,14 +332,8 @@ export async function fetchRiskPointsFromSheet(
       }
     }
 
-    // Map back status
-    let status: RiskStatus = 'pending_review';
-    for (const [key, val] of Object.entries(STATUS_NAMES)) {
-      if (val === statusStr || key === statusStr) {
-        status = key as RiskStatus;
-        break;
-      }
-    }
+    // Map back status using normalizeRiskStatus
+    const status: RiskStatus = normalizeRiskStatus(statusStr);
 
     parsedPoints.push({
       id: id || `SHEET-ROW-${index + 2}`,
@@ -538,15 +614,8 @@ export function parseSheetRowToRiskPoint(row: any[], rowIndex: number): RiskPoin
     severity = 'medium';
   }
 
-  // Map status back
-  let status: RiskStatus = 'approved';
-  const stStr = String(statusStr || '').trim();
-  for (const [key, val] of Object.entries(STATUS_NAMES)) {
-    if (val === stStr || key === stStr) {
-      status = key as RiskStatus;
-      break;
-    }
-  }
+  // Map status back using normalizeRiskStatus
+  const status: RiskStatus = normalizeRiskStatus(statusStr);
 
   return {
     id: String(id || `ROW-${rowIndex}`),
@@ -629,7 +698,7 @@ export async function fetchRiskPointsFromAppsScript(
             title: String(p.title || 'จุดเสี่ยงจาก Google Sheets'),
             category,
             severity,
-            status: (p.status as RiskStatus) || 'approved',
+            status: normalizeRiskStatus(p.status),
             lat: Number(p.lat),
             lng: Number(p.lng),
             accuracy: Number(p.accuracy) || 5,

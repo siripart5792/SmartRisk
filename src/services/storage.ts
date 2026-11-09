@@ -3,7 +3,8 @@
  * Ensures 100% resilient offline data persistence and automatic synchronization queue.
  */
 
-import { RiskPoint, RiskCategory, RiskSeverity, AppSettings, UserProfile, SyncLog } from '../types';
+import { RiskPoint, RiskCategory, RiskSeverity, RiskStatus, AppSettings, UserProfile, SyncLog } from '../types';
+import { normalizeRiskStatus } from './googleSheets';
 
 const DB_NAME = 'GeoRiskFieldOps_DB';
 const DB_VERSION = 1;
@@ -218,6 +219,9 @@ class StorageService {
     if ((category as string) === 'tree_fall') category = 'other';
     if ((category as string) === 'landslide') category = 'road_damage';
 
+    // Normalize status from Google Sheets / cache to ensure approved status matches correctly
+    const status: RiskStatus = normalizeRiskStatus(raw.status);
+
     const lat = typeof raw.lat === 'number' && !isNaN(raw.lat) ? raw.lat : 18.7904;
     const lng = typeof raw.lng === 'number' && !isNaN(raw.lng) ? raw.lng : 98.9853;
 
@@ -225,6 +229,7 @@ class StorageService {
       ...raw,
       severity,
       category,
+      status,
       lat,
       lng,
     };

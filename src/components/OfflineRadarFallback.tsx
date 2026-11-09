@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { RiskPoint, GPSPosition } from '../types';
 import { calculateDistanceMeters, calculateBearing } from '../services/geofence';
+import { isRiskPointApproved } from '../services/googleSheets';
 
 interface OfflineRadarProps {
   points: RiskPoint[];
@@ -116,6 +117,8 @@ export const OfflineRadarFallback: React.FC<OfflineRadarProps> = ({
 
                 const isHigh = p.severity === 'high' || (p.severity as string) === 'critical';
                 const isMedium = p.severity === 'medium';
+                const isApproved = isRiskPointApproved(p);
+                const isPending = !isApproved;
 
                 return (
                   <button
@@ -133,8 +136,8 @@ export const OfflineRadarFallback: React.FC<OfflineRadarProps> = ({
                         : isMedium
                         ? 'bg-amber-500 shadow-md shadow-amber-500/70'
                         : 'bg-blue-400'
-                    }`}
-                    title={`${p.title} (${p.distance}m)`}
+                    } ${isPending ? 'border-2 border-dashed border-amber-300 ring-2 ring-amber-500/60' : ''}`}
+                    title={`${p.title} (${p.distance}m) ${isPending ? '[ยังไม่อนุมัติ]' : '[อนุมัติแล้ว]'}`}
                   >
                     <div
                       className={`w-3 h-3 rounded-full border border-white ${
@@ -150,8 +153,19 @@ export const OfflineRadarFallback: React.FC<OfflineRadarProps> = ({
           {/* Selected Radar Blip Info Card */}
           {selectedPoint && (
             <div className="w-full mt-3 p-3 rounded-2xl bg-slate-900 border border-orange-500/50 shadow-lg animate-in fade-in">
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-xs sm:text-sm font-bold text-orange-400">{selectedPoint.title}</span>
+              <div className="flex items-center justify-between mb-1 gap-2 flex-wrap">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="text-xs sm:text-sm font-bold text-orange-400">{selectedPoint.title}</span>
+                  {!isRiskPointApproved(selectedPoint) ? (
+                    <span className="text-[9px] px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 border border-amber-500/50">
+                      ⏳ ยังไม่อนุมัติ (รอตรวจ)
+                    </span>
+                  ) : (
+                    <span className="text-[9px] px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                      ✓ อนุมัติแล้ว
+                    </span>
+                  )}
+                </div>
                 <span className="text-[10px] px-2 py-0.5 rounded-full bg-red-950 text-red-400 border border-red-800 font-mono">
                   {calculateDistanceMeters(userLat, userLng, selectedPoint.lat, selectedPoint.lng)} เมตร
                 </span>

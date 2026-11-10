@@ -52,8 +52,8 @@ export const Header: React.FC<HeaderProps> = ({
       <div className="flex items-center justify-between gap-1.5 sm:gap-4 max-w-7xl mx-auto w-full">
         {/* Brand / Logo */}
         <div className="flex items-center gap-2 shrink-0">
-          <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-gradient-to-br from-amber-500 via-orange-600 to-red-600 flex items-center justify-center shadow-md shadow-orange-950/40 shrink-0">
-            <Radio className="w-4 h-4 sm:w-5 sm:h-5 text-white animate-pulse" />
+          <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl overflow-hidden shadow-md shadow-orange-950/50 border border-orange-500/40 shrink-0 bg-slate-900 flex items-center justify-center">
+            <img src="/favicon.svg" alt="SmartRisk Logo" className="w-full h-full object-cover" />
           </div>
           <div>
             <div className="flex items-center gap-1 sm:gap-1.5">
